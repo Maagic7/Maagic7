@@ -1,6 +1,6 @@
 # Maagic7
 is a professional library for S7-300/400 PLCs
-it's developed by me since 2003 and run in all my Simatic projects.
+it's developed by me since 2003. It runs in all my Simatic projects.
  - biolgical gas power plant
  - biological waste treatments
  - glass production machinery
