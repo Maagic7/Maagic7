@@ -1,0 +1,5262 @@
+FUNCTION "m7a_ByteToBits" : VOID
+TITLE =ByteToBits: Splitet 1 Byte in 8 Bits
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2009
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//12.08.2013   S.Maag    direkets Byteweises kopieren auf die Ausgänge
+//                       funktioniert nur, wenn die Zielbits aufeinanderfolgend
+//                       sind. (war bisher immer zufällig so)
+//                       Bits müssen immer einzeln kopiert werden!
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  TheByte : BYTE ;	
+END_VAR
+VAR_OUTPUT
+  Bit0 : BOOL ;	
+  Bit1 : BOOL ;	
+  Bit2 : BOOL ;	
+  Bit3 : BOOL ;	
+  Bit4 : BOOL ;	
+  Bit5 : BOOL ;	
+  Bit6 : BOOL ;	
+  Bit7 : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #TheByte; 
+      T     LB     0; 
+
+      U     L      0.0; 
+      =     #Bit0; 
+      U     L      0.1; 
+      =     #Bit1; 
+      U     L      0.2; 
+      =     #Bit2; 
+      U     L      0.3; 
+      =     #Bit3; 
+      U     L      0.4; 
+      =     #Bit4; 
+      U     L      0.5; 
+      =     #Bit5; 
+      U     L      0.6; 
+      =     #Bit6; 
+      U     L      0.7; 
+      =     #Bit7; 
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+
+
+END_FUNCTION
+
+FUNCTION "m7a_BitsToByte" : VOID
+TITLE =BitsToByte: verbindet 8 Bits zu einem Byte
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 6/2007
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//12.08.2013   S.Maag    direkets Byteweises kopieren von den Eingängen
+//                       funktioniert nur, wenn die Quellbits aufeinanderfolgend
+//                       sind. (war bisher immer zufällig so, da KOP und 
+//                       Übergabe per Lx.y, Im AWL funktioniert es nicht, da 
+//                       direkte Merkeradressen übergeben werden)
+//                       Bits müssen deshalb immer einzeln kopiert werden!
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Bit0 : BOOL ;	
+  Bit1 : BOOL ;	
+  Bit2 : BOOL ;	
+  Bit3 : BOOL ;	
+  Bit4 : BOOL ;	
+  Bit5 : BOOL ;	
+  Bit6 : BOOL ;	
+  Bit7 : BOOL ;	
+END_VAR
+VAR_OUTPUT
+  TheByte : BYTE ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//alter CODE funktioniert nicht wenn AWL-Aufruf mit nicht zusammenhängenden Bits
+//      L     P##Bit0
+//      LAR1  
+//      L     B [AR1,P#0.0]
+//      T     #TheByte
+//
+      U     #Bit0; 
+      =     L      0.0; 
+      U     #Bit1; 
+      =     L      0.1; 
+      U     #Bit2; 
+      =     L      0.2; 
+      U     #Bit3; 
+      =     L      0.3; 
+      U     #Bit4; 
+      =     L      0.4; 
+      U     #Bit5; 
+      =     L      0.5; 
+      U     #Bit6; 
+      =     L      0.6; 
+      U     #Bit7; 
+      =     L      0.7; 
+
+      L     LB     0; 
+      T     #TheByte; 
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_CopyDBW_ByRef" : VOID
+TITLE =CopyDBW_ByRef: Kopiert Datenworte von Quell-DB zu Ziel-DB
+//!!! noch testen!!!
+//Kopiert eine Anzahl von Datenworten (16-Bit-Werte von DB zu DB).
+//Die Kopierroutine arbeitet sehr effektiv, da die Werte nicht als 16-Bit sondern 
+//als 32-Bit-Werte kopiert werden. Weiterhin müssen die DBs nur einmal geöffnet 
+//werden, dies erreicht man, indem man einen DB als Global-DB und den anderen als 
+//Instanz-DB öffnet.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  SOURCE : BLOCK_DB ;	
+  DEST : BLOCK_DB ;	
+  SOURCE_DW : INT ;	
+  DEST_DW : INT ;	
+  NUMBER : INT ;	
+END_VAR
+VAR_TEMP
+  QUELL_ADR : DINT ;	
+  ZIEL_ADR : DINT ;	
+  ACTIVE_DI : INT ;	//Zwichenspeicher Nr. aktiver Instanzdatenbaustein
+  AR1 : DINT ;	
+  AR2 : DINT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Register sichern
+
+      L     DINO; // Nr. Instanzdatenbaustein in AKKU
+      T     #ACTIVE_DI; // Nr. des akt. Instanz-Db sichern
+      TAR1  #AR1; // Adressregister 1 sichern
+      TAR2  #AR2; // Adressregister 2 sichern
+
+NETWORK
+TITLE =Adressen für Quell und Ziel-DW als Pointer in Adressregister
+
+      L     #SOURCE_DW; // Quelldatenwort-Nr 
+      SLD   3; // als Pointer
+      L     P#0.0; // 0-Pointer addieren, damit
+      +D    ; // Kennungsbits für Pointer gesetzt werden
+      LAR1  ; // ins Adressregister 1
+
+      L     #DEST_DW; // Zieldatenwort-Nr
+      SLD   3; // als Pointer 
+      L     P#0.0; 
+      +D    ; 
+      LAR2  ; // ins Adressregister 2
+NETWORK
+TITLE =Daten kopieren
+
+      AUF   #SOURCE; // Quell-DB als Global-DB öffnen
+      TDB   ; // Global und Instanz-DB tauschen (Quelle wird Instanz-DB)
+      AUF   #DEST; // Ziel-DB als Global-DB öffnen
+
+      L     #NUMBER; // Anzahl der zu kopierenden DW's (Anzahl der 16 Bit-Werte)
+      SRW   1; // in Anzahl der 32-Bit-Werte umrechen
+LOOP: L     DID [AR1,P#0.0]; // Quell-DW lesen
+      T     DBD [AR2,P#0.0]; // Ziel-DW lesen
+      +AR1  P#4.0; // Quell-Pointer in AR1 um 4 Bytes erhöhen
+      +AR2  P#4.0; // Ziel-Pointer in AR2 um 4 Bytes erhöhen
+      TAK   ; // Schleifenzähler wieder in Akku 1 zurück
+      LOOP  LOOP; // Schleifenzähler bearbeiten
+
+      L     #NUMBER; // nun noch prüfen ob noch ein 16-Bit-Wert kopiert werden muss
+      SRW   1; // LSB von Anzahl wird in Ergebnisvorzeichenregister geschoben
+      SPZ   END; // prüft somit, ob LSB von ANZAHL = 1 ist
+      L     DIW [AR1,P#0.0]; // Dann muss das letze DW noch kopiert werden
+      T     DBW [AR2,P#0.0]; 
+NETWORK
+TITLE =Registerinhalte wieder herstellen
+
+END:  AUF   DI [#ACTIVE_DI]; // Activen Instanz-DB wieder herstellen
+      LAR1  #AR1; // Adressregister 1 wieder herstellen
+      LAR2  #AR2; // Adressregister 2 wieder herstellen
+END_FUNCTION
+
+FUNCTION "m7a_CopyDBW_ByVal" : VOID
+TITLE =CopyDBW_ByVal: Kopiert Datenworte von Quell-DB zu Ziel-DB
+//Kopiert eine Anzahl von Datenworten (16-Bit-Werte von DB zu DB).
+//Die Kopierroutine arbeitet sehr effektiv, da die Werte nicht als 16-Bit sondern 
+//als 32-Bit-Werte kopiert werden. Weiterhin müssen die DBs nur einmal geöffnet 
+//werden, dies erreicht man, indem man einen DB als Global-DB und den anderen als 
+//Instanz-DB öffnet.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE: gestestet 10.01.2005
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  SOURCE_DB : INT ;	
+  DEST_DB : INT ;	
+  SOURCE_DW : INT ;	
+  DEST_DW : INT ;	
+  NUMBER : INT ;	
+END_VAR
+VAR_TEMP
+  Quell_DB_Nr : INT ;	
+  Ziel_Db_Nr : INT ;	
+  QUELL_ADR : DINT ;	
+  ZIEL_ADR : DINT ;	
+  ACTIVE_DI : INT ;	//Zwichenspeicher Nr. aktiver Instanzdatenbaustein
+  AR1 : DINT ;	
+  AR2 : DINT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Register sichern
+
+      L     DINO; // Nr. Instanzdatenbaustein in AKKU
+      T     #ACTIVE_DI; 
+      TAR1  #AR1; // Adressregister 1 sichern
+      TAR2  #AR2; // Adressregister 2 sichern
+
+NETWORK
+TITLE =Datenbausteinnummern müssen auf Temp-Variablen kopiert werden
+
+      L     #SOURCE_DB; 
+      T     #Quell_DB_Nr; 
+
+      L     #DEST_DB; 
+      T     #Ziel_Db_Nr; 
+NETWORK
+TITLE =Adressen für Quell und Ziel-DW als Pointer in Adressregister
+
+      L     #SOURCE_DW; // Quelldatenwort-Nr 
+      SLD   3; // als Pointer
+      L     P#0.0; // 0-Pointer addieren, damit
+      +D    ; // Kennungsbits für Pointer gesetzt werden
+      LAR1  ; // ins Adressregister 1
+
+      L     #DEST_DW; // Zieldatenwort-Nr
+      SLD   3; // als Pointer 
+      L     P#0.0; 
+      +D    ; 
+      LAR2  ; // ins Adressregister 2
+NETWORK
+TITLE =Daten kopieren
+
+      AUF   DI [#Quell_DB_Nr]; // Quell-DB als Instanz-DB öffnen
+      AUF   DB [#Ziel_Db_Nr]; // Ziel-DB als Global-DB öffnen
+
+      L     #NUMBER; // Anzahl der zu kopierenden DW's (Anzahl der 16 Bit-Werte)
+      SRW   1; // in Anzahl der 32-Bit-Werte umrechen
+LOOP: L     DID [AR1,P#0.0]; // Quell-DW lesen
+      T     DBD [AR2,P#0.0]; // Ziel-DW lesen
+      +AR1  P#4.0; // Quell-Pointer in AR1 um 4 Bytes erhöhen
+      +AR2  P#4.0; // Ziel-Pointer in AR2 um 4 Bytes erhöhen
+      TAK   ; // Schleifenzähler in Akku 1 zurück
+      LOOP  LOOP; // Schleifenzähler bearbeiten
+
+      L     #NUMBER; // nun noch prüfen ob noch ein 16-Bit-Wert kopiert werden muss
+      SRW   1; // LSB von Anzahl wird in Ergebnisvorzeichenregister geschoben
+      SPZ   END; // prüft somit, ob LSB von ANZAHL = 1 ist
+      L     DIW [AR1,P#0.0]; // Dann muss das letze DW noch kopiert werden
+      T     DBW [AR2,P#0.0]; 
+NETWORK
+TITLE =Registerinhalte wieder herstellen
+
+END:  AUF   DI [#ACTIVE_DI]; // Activen Instanz-DB wieder herstellen
+      LAR1  #AR1; // Adressregister 1 wieder herstellen
+      LAR2  #AR2; // Adressregister 2 wieder herstellen
+
+END_FUNCTION
+
+FUNCTION "m7a_MakePointer" : VOID
+TITLE =MakePointer: Inhalt von Akku 1 in Pointerformat wandeln
+//Convertiert den Inhalt von Akku 1 ins Pointerformat, d.h. der Pointer steht 
+//nach FC-Durchlauf ebenfalls in Akku 1.
+//Dieser FC darf nur mit dem Befehl UC FCx aufgerufen werden, auf keinen Fall mit 
+//Call, da nach dem Call-Befehl der Inhalt des Akkus verändert ist (wegen 
+//Aufrufparameter)
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 1/2005
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =Inhalt von Akku 1 in Pointerformat wandeln
+
+      SLD   3; // Byte-Adresse in Bitadresse 
+      L     P#0.0; // Pointerkennung durch Addition eines
+      +D    ; // Null-Pointers hinzufügen
+
+END_FUNCTION
+
+FUNCTION "m7a_FLANKEN_BYTE_pos_neg" : VOID
+TITLE =Byteweise positive und negative Flankenauswertung
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 5/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  INPUT : BYTE ;	//Eingangswert, von dem Flanken bestimmt werden sollen
+END_VAR
+VAR_OUTPUT
+  FLK_pos : BYTE ;	//poitive Flanken
+  FLK_neg : BYTE ;	//negative Flanken
+END_VAR
+VAR_IN_OUT
+  tmpFLK : BYTE ;	//Hilfswort zur Flankenauswertung, speichert letzten Zustand
+END_VAR
+BEGIN
+NETWORK
+TITLE =Flanken auswerten
+
+
+      L     #INPUT; // aktueller Zustand
+      L     #tmpFLK; // letzter Zustand
+      XOW   ; // +/- Flanken auswerten
+      TAK   ; // aktueller Wert wieder in Akku1
+      UW    ; // positive Flanken filtern
+      T     #FLK_pos; // positive Flanken speichern
+      TAK   ; // Flanken in Akku 1 zurück
+      L     #INPUT; // aktueller Zustand
+      T     #tmpFLK; // als letzten speichern
+      INVI  ; // Bits invertieren, um neg. Flanken zu filtern
+      UW    ; // negative Flanken filtern
+      T     #FLK_neg; // negative Flanken speichern
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_UniValve" : VOID
+TITLE =Unviverselle Standard-Ventilansteuerung 2Spulen/2Sensoren 
+//Universal-Ansteuerung 2-Spulen-Ventil (5/2 oder 5/3 oder doppel-3/2) 2-Sensoren
+//
+//TASTE: Eingang für eine Handtaste. Diese funktioniert nur bei Impulscontrol 
+//       bzw .5/2 Ventilen. Bei 5/3-Funktion müssen die beiden Handtasten extern
+//       auf die Eingänge IN_GST und IN_AST verknüpft werden.
+//       Bei einer Flanke am Eingang TASTE werden die beiden Ventilausgänge 
+//       umgeschaltet. Die Eingänge IN_GST und IN_AST müssen dazu LOW sein.
+//
+//Beispielwerte des Kunfigrations-Bytes (FktConfBits) bei verschiedenen Ventilen
+// 0: 5/2 oder 5/3 Ventil 2 Sensoren ohne Sonderfunktion
+// 1: 5/3 Ventil mit Funktion halten in Endstellung
+// 2: 5/3 Ventil mit 5/2 Funktionssimulation
+// 3: gleich wie 2, da Halten in Endstellung bei Impulscontrol keine Funktion hat
+//
+//EndstellungHalten: cfgBit 0: 
+//   Diese Funktion hat nur bedingte Wirkung bei ImpulsControl. Nur dann wenn 
+//   beim Einschaltvorgang noch kein Ausgang geschaltet ist und ein 
+//   Endlagensensor aktiv ist. Diese Funktion ist nützlich, wenn 5/3-Ventile mit 
+//   offener Mittelstellung im Impulsbetrieb verwendet werden müssen 
+//   (dies ist dann eine 5/2-Funktion, wird z.B. benötigt, wenn falsches Ventil 
+//   eingebaut wurde). Es wird dann der zum Sensor passende Ventilausgang    
+//   geschaltet, dies verhindert das bei drucklos geschaltete Zylinderspringen.
+//   
+//   0 - Der Ventilausgang wird in Endstellung nicht gehalten
+//   1 - Der Ventilausgang wird gehalten, wenn der entsperechende                 
+//       Endstellungssensor aktiv ist (der Steuereingang kann aus sein).
+//
+//ImpulsControl cfgBit 1:
+// (hiermit kann z.B. ein 5/3 Ventil wie ein 5/2 geschaltet werden)
+//    0 - Der Eingang wird dem Ventil zugeweisen, d.h. es schaltet
+//        mit Eingangsignal=0 wieder aus
+//    1 - Es reicht eine Flanke am Steuereingang und das Ventil dauerhaft
+//        zu schalten. Umschaltung erfolgt erst bei einem Richtungswechsel
+//        an den Steuereingängen
+//
+//Doppel_3_2: (Die Ventilausgänge werden invertiert)
+//    Doppeltes 3/2 Ventil und Zylinder mit durchgehender Kolbenstange. 
+//    Ein Zylinder mit druchgehender Kolbenstange kann mit 2 Stk. 3/2 Ventilen
+//    so angesteuert werden wie mit einem 5/3 Ventil. Der Unterschied besteht
+//    darin, daß man bei druchgehender Kolbenstange beide Zylinderkammern unter
+//    Druck setzten kann, damit sich der Zylinder nicht bewegt. Er läßt sich dann 
+//    aber wie bei 5/3 und offener Mittelstellung leicht schieben, das 
+//    gefürchtete Zylinderspringen entsteht aber nicht. Bei doppelter 3/2 
+//    Funktion wird die Zylinderseite drucklos geschaltet, nach der sich der     
+//    Zylinder bewegen soll. Die Ventilausgänge sind also gegenüber der normalen
+//    5/3 Funktion invertiert
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 8/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME      AENDERUNG
+//--------------------------------------------------------------------------------
+//17/09/2004   Maag      Eingang TASTE hinzugefügt & neuer kürzerer Code
+//12/08/2005   Maag      cfg fuer Aus in Endstellung hinzugefügt
+//30/10/2007   Maag      Tastensteuerung bei Impulscontrol und halten in
+//                       Endstellung funktionierte nicht. NW7/8 UN #tmpOut_xxx
+//16/04/2009   Maag      GST und AST durch Spulen A, B ersetzt 
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  FRG : BOOL ;	//FREIGABE
+  IN_A : BOOL ;	
+  IN_B : BOOL ;	
+  TASTE : BOOL ;	//Handtaste für Impulstastung
+  Sensor_A : BOOL ;	//Sensor Position A, Grundstellung
+  Sensor_B : BOOL ;	//Sensor Position B, Arbeitsstellung
+  FktConfBits : BYTE ;	//FKT: B0=Endstellung halten, B1=ImpulsControl, B2=Enstellung Aus, B3=Doppel 3/2
+END_VAR
+VAR_OUTPUT
+  OUT_A : BOOL ;	//Ausgang Spule A, Bewegung Grundstellung
+  OUT_B : BOOL ;	//Ausgang Spule B, Bewegung Arbeitsstellung
+END_VAR
+VAR_IN_OUT
+  bTmp : BYTE ;	//Hilfs-Byte
+END_VAR
+VAR_TEMP
+  tmpOUT_A : BOOL ;	//Ventilausgang GST speichern
+  tmpOUT_B : BOOL ;	//Ventilausgang AST speichern
+  tmpBit2 : BOOL ;	//Bewegung GST für Impulssteuerung speichern
+  tmpBit3 : BOOL ;	//Bewegung AST für Impulssteuerung speichern
+  tmpA_war_erreicht : BOOL ;	//Grundstellung war erreicht
+  tmpB_war_erreicht : BOOL ;	//Arbeitsstellung war erreicht
+  tmpFLK_Hand : BOOL ;	//Flanke Hand
+  tmpSave_Bit7 : BOOL ;	
+  cfg_EndstellungHalten : BOOL ;	//KonfigurationsBit: Funktion Endstellung halten  (auf Enstellungssensoren)
+  cfg_ImpulsControl : BOOL ;	//KonfigurationsBit: Funktion ImpulsControl - Als Steuereingang reicht Flanke
+  cfg_AusInEndstellung : BOOL ;	//KonfigurationsBit: Aus in Endstellung
+  cfg_Doppel3_2 : BOOL ;	//KonfigurationsBit: Funktion Doppel 3/2 Venttil und druchgehende Kobenstange 
+  cfg_Bit4 : BOOL ;	
+  cfg_Bit5 : BOOL ;	
+  cfg_Bit6 : BOOL ;	
+  cfg_Bit7 : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Hilfsbyte in Lokaldatenbereich kopieren
+
+      L     #bTmp; 
+      T     LB     0; 
+      NOP   0; 
+
+
+NETWORK
+TITLE =Konfigurations-Byte in Lokaldatenbereich kopieren
+
+      L     #FktConfBits; 
+      T     LB     1; 
+      NOP   0; 
+NETWORK
+TITLE =Grundstellung war erreicht
+
+      U     #tmpOUT_A; 
+      U     #Sensor_A; 
+      S     #tmpA_war_erreicht; 
+      U(    ; 
+      U     #tmpOUT_B; 
+      UN    #Sensor_A; 
+      O     #Sensor_B; 
+      )     ; 
+      R     #tmpA_war_erreicht; 
+      NOP   0; 
+NETWORK
+TITLE =Arbeitsstellung war erreicht
+
+      U     #tmpOUT_B; 
+      U     #Sensor_B; 
+      S     #tmpB_war_erreicht; 
+      U(    ; 
+      U     #tmpOUT_A; 
+      UN    #Sensor_B; 
+      O     #Sensor_A; 
+      )     ; 
+      R     #tmpB_war_erreicht; 
+      NOP   0; 
+NETWORK
+TITLE =Freigabe
+
+      UN    #FRG; 
+      SPB   CLR; 
+
+NETWORK
+TITLE =Manuelle 1-Tastensteuerung funktioniert nur bei ImpulsControl
+
+      U     #TASTE; 
+      FP    #tmpFLK_Hand; 
+      SPB   SWTC; 
+NETWORK
+TITLE =Ausgang Bewegung Grundstellung 
+//30.10.2007 S.M. / UN #tmpOut_AST hinzugefügt, da Tastensteuerung bei 
+//Impulscontrol und halten in Endstellung nicht funktionierte
+      U(    ; 
+      O     #Sensor_A; 
+      O     #tmpA_war_erreicht; 
+      )     ; 
+      U     #cfg_EndstellungHalten; 
+      UN    #IN_B; 
+      UN    #tmpOUT_B; 
+      O     #IN_A; 
+      SPB   GST; 
+NETWORK
+TITLE =Ausgang Bewegung Arbeitsstellung
+//30.10.2007 S.M. / UN #tmpOut_GST hinzugefügt, da Tastensteuerung bei 
+//Impulscontrol und halten in Endstellung nicht funktionierte
+      U(    ; 
+      O     #Sensor_B; 
+      O     #tmpB_war_erreicht; 
+      )     ; 
+      U     #cfg_EndstellungHalten; 
+      UN    #IN_A; 
+      UN    #tmpOUT_A; 
+      O     #IN_B; 
+      SPB   AST; 
+NETWORK
+TITLE =Impulscontrol
+//Bei Impulscontrol bleiben die Ausgäng auch geschaltet, wenn das Steuersignal 
+//erlischt. Hierzu wird hier einfach des Löschen der Ausgänge übersprungen, wenn 
+//keine Operation anliegt.
+      U     #cfg_ImpulsControl; // Bei Funktion Impulscontrol bleiben die
+      SPB   NWE; // Ausgänge erhalten, auch wenn das Steuersignal aus ist
+NETWORK
+TITLE =Ventilzustände steuern
+
+CLR:  R     #tmpOUT_A; // Ventilansteuerung löschen
+      R     #tmpOUT_B; 
+      SPA   NWE; 
+
+GST:  S     #tmpOUT_A; // Ventilansteuerung für Grundstellung
+      R     #tmpOUT_B; 
+      SPA   NWE; 
+
+AST:  R     #tmpOUT_A; // Ventilansteuerung für Arbeitsstellung
+      S     #tmpOUT_B; 
+      SPA   NWE; 
+
+SWTC: U     #tmpOUT_A; // Ventilansteuerung umschalten (SWITCH)
+      SPB   AST; 
+      SPA   GST; 
+
+NWE:  NOP   0; 
+NETWORK
+TITLE =Ventilausgang Grundstellung
+//Bei doppelter 3/2-Funktion für Zylinder mit durchgehender Kolbenstange muß der 
+//Schaltausgang invertiert werden, da die Zylinderkammer für die 
+//Bewegungsrichtung drucklos geschaltet wird.
+      U(    ; 
+      U     #tmpOUT_A; 
+      UN    #cfg_Doppel3_2; 
+      O     ; 
+      UN    #tmpOUT_A; 
+      U     #cfg_Doppel3_2; 
+      )     ; 
+      U(    ; 
+      ON    #cfg_AusInEndstellung; 
+      ON    #Sensor_A; 
+      )     ; 
+      =     #OUT_A; 
+NETWORK
+TITLE =Ventilausgang Arbeitsstellung
+//Bei doppelter 3/2-Funktion für Zylinder mit durchgehender Kolbenstange muß der 
+//Schaltausgang invertiert werden, da die Zylinderkammer für die 
+//Bewegungsrichtung 
+//drucklos geschaltet wird.
+      U(    ; 
+      U     #tmpOUT_B; 
+      UN    #cfg_Doppel3_2; 
+      O     ; 
+      UN    #tmpOUT_B; 
+      U     #cfg_Doppel3_2; 
+      )     ; 
+      U(    ; 
+      ON    #cfg_AusInEndstellung; 
+      ON    #Sensor_B; 
+      )     ; 
+      =     #OUT_B; 
+NETWORK
+TITLE =LokalBits wieder in HilfsByte zurückspeichern
+
+      L     LB     0; 
+      T     #bTmp; 
+      NOP   0; 
+
+NETWORK
+TITLE =
+
+      SET   ; // FC-ENO-Eingang
+      SAVE  ; // auf FC-ENO-Ausgang
+      CLR   ; // druchschleifen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_ZylinderFehlerEx" : VOID
+TITLE =Fehlerüberwachung Zylinder (mit Richtung)
+//Überwachung von Zylinderbewegungen.
+//Wird in der angebenen Zeit die Zylinderendstellung nicht erreicht, so wird 
+//ERROR für die entsprechende Richtung ausgegeben. Der ENO-Ausgang des FC erhält 
+//den ODER-verknüpten Error-Zustand. Ist also bei Fehler, egal welcher Richtung 
+//High  
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//04.01.2006   S.Maag      Richtungsabhängige Fehlerüberwachung
+//                         Umbenannt von cZylinderFehler->cZylinderFehlerEx 
+//16.04.2009   S.Maag      GST und AST durch Spulen A, B ersetzt 
+//03.12.2013   S.Maag      SFC64 TimeTick Zeitdifferenz korrigiert
+//                         da 31Bit, Fehler bei Überlauf. Jetzt UC FC256       
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  SENS_A : BOOL ;	//Sensor Position A Grundstellung
+  SENS_B : BOOL ;	//Sensor Position B Arbeitsstellung
+  COIL_A : BOOL ;	//Eingang Schaltsignal Ventilspule A, Grundstellungs
+  COIL_B : BOOL ;	//Eingang Schaltsignal Ventilspule B; Arbeitsstellung
+  iecTime : TIME ;	//Zeit für Bewegung, IEC-Format
+END_VAR
+VAR_OUTPUT
+  ERR_A : BOOL ;	//Ausgang Fehler Sensor Position A, Grundstellung
+  ERR_B : BOOL ;	//Ausgang Fehler Sensor Position B, Arbeitsstellung
+END_VAR
+VAR_IN_OUT
+  tmpTime : TIME ;	//Speichervariable für Zeit
+  tmpByte : BYTE ;	
+END_VAR
+VAR_TEMP
+  LB_FP_YGST : BOOL ;	
+  LB_FP_YAST : BOOL ;	
+  LB_Bit2 : BOOL ;	
+  LB_Bit3 : BOOL ;	
+  LB_Bit4 : BOOL ;	
+  LB_Bit5 : BOOL ;	
+  LB_Bit6 : BOOL ;	
+  LB_Bit7 : BOOL ;	
+  aktSysTime : TIME ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Stationäres Hilbsbyte in Lokaldatenbereich kopieren
+
+      L     #tmpByte; 
+      T     LB     0; 
+
+NETWORK
+TITLE =Zeit bei Bewegung Start speichern
+
+      U     #COIL_A; // falls beide Ventile gleichzeitg angesteuert sind
+      U     #COIL_B; // dann Zeitüberwachung solange starten bis ein
+      SPB   SVT; // Ventil abgeschaltet wird. Erst dann ist def. Zustand
+
+      U     #COIL_A; // Ventil Grundstellung
+      FP    #LB_FP_YGST; // Flanke Ventilansteuerung
+      SPB   SVT; // Save Time
+
+      U     #COIL_B; // Ventil Arbeitsstellung
+      FP    #LB_FP_YAST; // Flanke Ventilansteuerung
+      SPB   SVT; // Save Time
+
+      SPA   NE1; 
+
+SVT:  NOP   0; // Zeit bei Bewegung Start speichern
+      CALL "TIME_TCK" (// Systemzeit wird zur Bewegungsüberwachung verwendet
+           RET_VAL                  := #tmpTime);// dadurch erspart man sich Timerübergaben
+
+NE1:  NOP   0; 
+NETWORK
+TITLE =Prüfen, ob beide Sensoren belegt sind => Fehler
+
+      U     #SENS_A; 
+      U     #SENS_B; 
+      SPBN  NE2; 
+      =     #ERR_A; 
+      =     #ERR_B; 
+      SAVE  ; 
+      BEA   ; 
+NE2:  NOP   0; 
+
+NETWORK
+TITLE =Zeit überprüfen, ob Endstellung erreicht ist
+
+      U     #COIL_A; // Ventil Grundstellung
+      UN    #SENS_A; // Sensor GST nicht erreicht
+      SPB   TCHK; // Prüfen ob max. Zeit Abgelaufen 
+
+      U     #COIL_B; // Ventil Arbeitsstellung
+      UN    #SENS_B; // Sensor Arbeitsstellung nicht erreicht
+      SPB   TCHK; // Prüfen ob max. Zeit Abgelaufen 
+
+      CLR   ; 
+      =     #ERR_A; 
+      =     #ERR_B; 
+      SAVE  ; 
+      SPA   END; 
+
+TCHK: NOP   0; // Zeit Abgelaufen?
+      CALL "TIME_TCK" (// aktuelle Systemzeit auslesen
+           RET_VAL                  := #aktSysTime);
+
+      L     #aktSysTime; 
+      L     #tmpTime; // Zeit bei Start Bewegung
+      UC    "m7b_ABS_DIFF_S7SysTime"; // Absolute Differenz S7SytemTimer 31Bit
+      L     #iecTime; // Zeit für Bewegung
+      >D    ; // Zeit abgelaufen
+      SAVE  ; // Fehler im BIE-Bit speichern
+      CLR   ; 
+
+      U     BIE; 
+      U     #COIL_A; // Ventil Grundstellung angesteuert, dann 
+      =     #ERR_A; // Fehler Sensor Grundstellung
+
+      U     BIE; // gespeicherter Fehlerzustand im BIE-Bit
+      U     #COIL_B; // und Ventil Arbeitsstellung, dann
+      =     #ERR_B; // Fehler Sensor Arbeitsstellung
+
+NETWORK
+TITLE =Stationäres Hilfsbyte aus Lokaldatenbereich zurückkopieren
+
+END:  L     LB     0; 
+      T     #tmpByte; 
+
+END_FUNCTION
+
+FUNCTION "m7a_ZylSensorSimulation" : VOID
+TITLE =Simulation von Zylindersensoren: 5/2-Ventil (Impulsv. 2 Spulen)
+//Klasse zum simulieren von Zylindersensoren.
+//Kann auch dazu verwendet werden, die Zylindersensoren etwas zu verzögern.
+//
+//ACHTUNG: funktioniert nur für Zylinder, die bei abgeschalteten 
+//Ventilsteuersignalen in ihrer Position bleiben. Dies gilt immer für 
+//5/2-Wege-Ventile mit 2 Spulen (Impulsventil) und für 5/3-Wege-Ventile mit 
+//geschlossener Mittelstellung. Die Sensorsignale werden speichernd verarbeitet,
+//d.h. wird die Spule Abgeschaltet, bleibt der Sensorzustand erhalten.
+//
+//Für nicht speichernde Verarbeitung kann der Reseteingang benutzt werden.
+//Dieser ist dann folgendermaßen zu beschalten 
+//   UN Y_GST
+//   UN Y_AST
+//
+//IN:
+//GST_VENT: Ansteuersignal von Ventilspule für Grundstellung
+//AST_VENT: Ansteuersignal von Ventilspule für Arbeitsstellung
+//RESET:    löschen der simulierten Sensorsignale
+//iecTime:  Zeit für die Bewegung im IEC-Format. Solange muß das Ventil
+//          geschaltet sein, damit die Sensoren simuliert werden. 
+//IO:
+//tmpTime:  Speicher für die Startzeit der Bewegung (TIME-Format)
+//tmpByte:  SpeicherByte für die im FC benötigten gespeicherten Signale
+//
+//OUT:
+//SENS_GST: simulierter Grundstellungssensor
+//SENS_AST: simulierter Arbeitsstellungssensor
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME      AENDERUNG
+//--------------------------------------------------------------------------------
+//16/04/2009   S.Maag      GST und AST durch Spulen A, B ersetzt 
+//14/10/2010   S.Maag      ENO =1 wenn Pos. Grund- oder Endstellung 
+//03/12/2013   S.Maag      SFC64 TimeTick Zeitdifferenz korrigiert
+//                         da 31Bit, Fehler bei Überlauf. Jetzt UC FC256
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  COIL_A : BOOL ;	//Eingang Schaltsignal Grundstellungs-Ventil
+  COIL_B : BOOL ;	//Eingang Schaltsignal Arbeitsstellungs-Ventil
+  RESET : BOOL ;	//Reset: löscht die Sensorzustände
+  iecTime : TIME ;	//Zeit für Bewegung
+END_VAR
+VAR_OUTPUT
+  SENS_A : BOOL ;	//simulierter Sensor Position A, Grundstellung
+  SENS_B : BOOL ;	//simulierter Sensor Position B, Arbeitsstellung
+END_VAR
+VAR_IN_OUT
+  tmpTime : TIME ;	//Speichervariable für Zeit
+  tmpByte : BYTE ;	//Speichervaribale für Signale
+END_VAR
+VAR_TEMP
+  tmpFLK_GST_VENT : BOOL ;	//Flanke Ventil Grundstellung
+  tmpFLK_AST_VENT : BOOL ;	//Flanke Ventil Arbeitsstellung
+  tmpRUN : BOOL ;	//Bewegung läuft
+  tmpOUT_GST : BOOL ;	
+  tmpOUT_AST : BOOL ;	
+  tmpZeitOk : BOOL ;	
+  tmpBit6 : BOOL ;	
+  tmpBit7 : BOOL ;	
+  aktSysTime : TIME ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =gespeicherte Signale in temporäre Verarbeitungssignale
+
+      L     #tmpByte; 
+      T     LB     0; 
+NETWORK
+TITLE =aktuelle SystemZeit zwischenspeichern
+
+      CALL "TIME_TCK" (// Systemzeit wird zur Bewegungsüberwachung verwendet
+           RET_VAL                  := #aktSysTime);// dadurch erspart man sich Timerübergaben
+
+NETWORK
+TITLE =Zeit bei Bewegung start speichern
+
+      U     #COIL_A; // falls beide Ventile gleichzeitg angesteuert sind
+      U     #COIL_B; // dann Zeitüberwachung solange starten bis ein
+      SPB   SVT; // Ventil abgeschaltet wird. Erst dann ist def. Zustand
+
+      U     #COIL_A; // Grundstellungsventil
+      FP    #tmpFLK_GST_VENT; 
+      SPB   SVT; // Save Time
+
+      U     #COIL_B; // Arbeitsstellungsventil
+      FP    #tmpFLK_AST_VENT; 
+      SPB   SVT; // Save Time
+      SPA   NE3; 
+
+SVT:  NOP   0; // Zeit bei Bewegung Start speichern
+      S     #tmpRUN; // Bewegung läuft
+
+      CALL "TIME_TCK" (// Systemzeit wird zur Bewegungsüberwachung verwendet
+           RET_VAL                  := #tmpTime);// dadurch erspart man sich Timerübergaben
+
+NE3:  NOP   0; 
+NETWORK
+TITLE =Bewegung läuft löschen, wenn beide Ventile aus sind oder Reset
+
+      UN    #COIL_A; 
+      UN    #COIL_B; 
+      O     #RESET; 
+      R     #tmpRUN; 
+NETWORK
+TITLE =Bei Reset die SensorAusgänge clr
+
+      U     #RESET; 
+      R     #tmpOUT_GST; // simulierter Sensor Grundstellung
+      R     #tmpOUT_AST; // simulierter Sensor Arbeitsstellung
+NETWORK
+TITLE =Zeit Überprüfen, ob Endstellung erreicht ist
+
+      UN    #tmpRUN; // Bewegung bzw. Zeitüberwachung läuft
+      SPB   NE6; 
+
+      L     #aktSysTime; // aktuelle Systemzeit Achtung 31Bit
+      L     #tmpTime; // Zeit bei Start Bewegung
+      UC    "m7b_ABS_DIFF_S7SysTime"; // Absolute Differenz S7SytemTimer 31Bit
+      L     #iecTime; // Zeit für Bewegung
+      >D    ; 
+      =     #tmpZeitOk; // Zeit abgelaufen
+
+      U     #tmpZeitOk; 
+      U     #COIL_A; // Grundstellungsventil ist aktiv
+      UN    #COIL_B; 
+      =     #tmpOUT_GST; 
+
+      U     #tmpZeitOk; 
+      U     #COIL_B; // Arbeitsstellungsventil
+      UN    #COIL_A; 
+      =     #tmpOUT_AST; 
+
+      O     #tmpOUT_GST; // Grundstellung wieder erreicht
+      O     #tmpOUT_AST; // Arbeitsstellung wieder erreicht
+      R     #tmpRUN; // Zeitüberwachung beenden
+NE6:  NOP   0; 
+NETWORK
+TITLE =simulierte Sensoren als FC-Ausgang ausgeben
+
+      U     #tmpOUT_GST; 
+      =     #SENS_A; 
+
+      U     #tmpOUT_AST; 
+      =     #SENS_B; 
+
+      O     #tmpOUT_GST; 
+      O     #tmpOUT_AST; 
+      SAVE  ; 
+      CLR   ; 
+NETWORK
+TITLE =temporäre Signale zurücksichern
+
+      L     LB     0; 
+      T     #tmpByte; 
+END_FUNCTION
+
+FUNCTION "m7a_ImpRELAIS" : VOID
+TITLE =Stromstoss-Relais Nachbildung
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IN : BOOL ;	//Eingangssignal
+  RESET : BOOL ;	//RESET
+END_VAR
+VAR_IN_OUT
+  OUT : BOOL ;	//Ausgangsignal
+  HM : BOOL ;	//Hilfsmerker
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      U     #IN; 
+      FP    #HM; 
+      SPB   DO; // Bei Flanke, Ausgang ändern
+      SPA   RES; // Reset prüfen
+DO:   UN    #OUT; // Ausgangszustand umkehren
+      =     #OUT; 
+
+NETWORK
+TITLE =RESET: Reset ist vorrangig
+
+RES:  U     #RESET; 
+      R     #OUT; 
+
+      U     #OUT; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_SelectINT<" : VOID
+TITLE =kleineren Wert [INT] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =kleineren Wert [INT] in Akku 1
+
+      >I    ; // Akku 2 > Akku 1
+      BEB   ; // also kleiner Wert ist in Akku 1 : ok.
+      TAK   ; // sonst Akkus Tauschen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_SelectINT>" : VOID
+TITLE =grösseren Wert [INT] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =grösseren Wert [INT] in Akku 1
+
+      <I    ; // Akku 2 < Akku 1
+      BEB   ; // Also grösserer Wert bereits in Akku 1
+      TAK   ; // sonst Akkus Tauschen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_ABS_DIFF_INT" : VOID
+TITLE =Berechnet den Absolutwert der Differenz: ABS (Akku2 - Akku1)
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =
+
+      -I    ; // Differenz bilden
+      SPP   NWE; // Wenn positiv dann ENDE
+      NEGI  ; // Vorzeichen ändern
+NWE:  NOP   0; 
+
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxLimit_INT" : VOID
+TITLE =Min/Max Begrenzung INT; Begrenzungsanzeige im BIE-Bit / FC-ENO
+//Min- Max- Begrenzung für Integer mit Begrenzungsanzeige
+//
+//BIE bzw. FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//                  1 = Wert war nicht ok.: Begrenzung aktiv
+//
+//VERWENDUNG:
+//Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+//Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+//Störungsanzeige oder zur direkten Weiterverschaltung.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 7/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  min : INT ;	//minimal Wert
+  max : INT ;	//maximal Wert
+END_VAR
+VAR_IN_OUT
+  VALUE : INT ;	//Sollwert
+END_VAR
+BEGIN
+NETWORK
+TITLE =MIN <= VALUE <= MAX
+
+      L     #VALUE; // Sollwert
+      L     #min; // minimal Wert
+      <I    ; 
+      SPB   LIM; // Limitierung wenn VALUE < MIN
+      TAK   ; // VALUE wieder in Akku 1
+      L     #max; // Maximalwert
+      >I    ; 
+      SPB   LIM; // Limitierung wenn VALUE > MAX
+
+      CLR   ; // VKE löschen, da keine Begrenzung erfolgte
+      SAVE  ; // BIE-Bit = 0, da Wert im Bereich war; ="Keine Begrenzung"
+      BEA   ; 
+
+LIM:  T     #VALUE; // max.Wert als Sollwert ausgeben
+      SET   ; 
+      SAVE  ; // VKE->BIE (=1=): Anzeige FC-ENO Ausgang (=Begrenzung)
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_Scale_INT" : INT
+TITLE =Bereich Skalieren INT
+//Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+//Ausgangswertebereich:
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//         und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//         der FC-ENO-Ausgang "1"
+//
+//z.B. Eingangswertebereich 100 -  300   
+//     Ausgangswertebereich   0 - 1000
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  iMinInput : INT ;	
+  iMaxInput : INT ;	
+  iValue : INT ;	
+  iMinOutput : INT ;	
+  iMaxOutput : INT ;	
+END_VAR
+VAR_TEMP
+  rTemp : REAL ;	
+  iTempRET : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #iMaxInput; 
+      L     #iMinInput; 
+      -I    ; // Differenz  INT
+      ITD   ; // zu        DINT
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #iMaxOutput; 
+      L     #iMinOutput; 
+      -I    ; // Differenz  INT
+      ITD   ; // zu        DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #iValue; // Eingangswert
+      L     #iMinInput; // UnterGrenze Eingangswert
+      -I    ; // Differenz  INT
+      ITD   ; // zu        DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #iMinOutput; 
+      ITD   ; 
+      +D    ; 
+      T     #RET_VAL; // in Rückgabewert speichern: INT
+      T     #iTempRET; 
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #iTempRET; // Rückgabewert mit Vorzeichen nochmal in Akku laden
+      L     #iMaxOutput; // MaxOutput
+      >I    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #iMinOutput; 
+      <I    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_Analog_Out_INT" : VOID
+TITLE =Wertebereich [INT] auf uni-/bipolaren Analogausgang skalieren
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogausgang gewählt werden.
+//   Der Wertebereich eines Analogausgangs liegt bei: 
+//      MinOutPut = 0; -27648  : unipolar; bipolar
+//      MaxOutPut = 27648
+//
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//     27649 bis 32767 : 10 bis 12V bzw. 20-24mA
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+//         der Übersteuerungsbereich liegt bei (27649..32767 : 10..12V)
+//         bzw. (-27649..-32768 : -10V..-12V
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//08/2005    S.Maag        Fehler bei bipolar behoben (-27648 bis 27648) passte 
+//                         nicht in INT Variable
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  iMinInput : INT ;	
+  iMaxInput : INT ;	
+  iValue : INT ;	
+  bipolar : BOOL ;	//0=unipolar (0..10V / 4..20mA); 1=bipolar (-10..10V)
+END_VAR
+VAR_OUTPUT
+  PAW : WORD ;	//Analogausgangswert in HEX
+  DSP_PAW : INT ;	//Anzeige Analogwert dezimal
+END_VAR
+VAR_TEMP
+  dMinOutPut : DINT ;	
+  dMaxOutPut : DINT ;	
+  dMinInput : DINT ;	
+  dMaxInput : DINT ;	
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Min- und Max- Ausgangswert für uni- und bipolar
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+      L     L#0; 
+      UN    #bipolar; 
+      SPB   weit; 
+      L     L#-27648; // max. Ausgangswert Analog  bei max. Sollwert
+weit: T     #dMinOutPut; 
+
+      L     L#27648; // max. Ausgangswert Analog  bei max. Sollwert
+      T     #dMaxOutPut; 
+NETWORK
+TITLE =INT Eingangswerte in DINT wandeln
+
+      L     #iMinInput; 
+      ITD   ; 
+      T     #dMinInput; 
+
+      L     #iMaxInput; 
+      ITD   ; 
+      T     #dMaxInput; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #dMaxInput; 
+      L     #dMinInput; 
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutPut; 
+      L     #dMinOutPut; 
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #iValue; // Eingangswert
+      ITD   ; // INT nach DINT
+      L     #dMinInput; // UnterGrenze Eingangswert
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutPut; 
+      +D    ; 
+      T     #PAW; // in Rückgabewert speichern
+      T     #DSP_PAW; // Anzeige Analogausgangswert dezimal
+NETWORK
+TITLE =FC-ENO-Ausgangs als Übersteuerungsanzeige
+
+      L     #dMaxOutPut; // MaxOutput
+      >D    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #dMinOutPut; 
+      <D    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_Analog_IN_INT" : INT
+TITLE =Skaliert Analogeingang uni-/bipolar auf einen Wertebereich [INT]
+//Skaliert den Wert eines Analogeingangs auf einen Wertebereich:
+//
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogeingang gewählt werden.
+//   Der Eingangswertebereich eines Analogeingangs liegt bei: 
+//      MinInput = 0; -27648  : unipolar; bipolar
+//      MaxInput = 27648
+//   Dies gilt auch für die OnBord-Eingänge der Kompakt-CPU's CPU 31xC
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//      27649..32767  :  10..12V bzw. 20..24mA
+//     -27649..-32768 : -10..-12V
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+// 
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Kanal : WORD ;	//PEW
+  MinOutput : INT ;	//minimaler Ausgangswert
+  MaxOutput : INT ;	//maximaler Ausgangswert
+  bipolar : BOOL ;	//0=Unipolar (0..10V / 4..20mA); 1=Bipolar (-10..10V)
+END_VAR
+VAR_TEMP
+  dMinInput : DINT ;	
+  dMaxInput : DINT ;	
+  dMinOutPut : DINT ;	
+  dMaxOutput : DINT ;	
+  rTemp : REAL ;	
+  iTmpRET : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Grenzen des Analogeingangswertebereichs auf temporäre Variable
+//unipolar:   0..10V   : minmaler Wert von Analogeingang = 0
+//bipolar : -10..10V   : minmaler Wert von Analogeingang = -27648
+      L     L#0; // unterer Grenzwert bei unipolar (z.B. 0..10V)
+      UN    #bipolar; // falls nicht bipolar, dann ist 0 der untere Grenzwert
+      SPB   weit; 
+      L     L#-27648; // unterer Grenzwert bei bipolar (z.B. -10..10V)
+weit: T     #dMinInput; // unterer Grenzwert des Analogsignals
+
+      L     L#27648; // oberer Grenzwert des Analogsignals
+      T     #dMaxInput; 
+NETWORK
+TITLE =Eingangswerte INT nach DINT kopieren
+//INT nach DINT ist nötig, da intern mit REAL gerechnet wird und dieser nur 
+//Vorzeichenrichtig aus einem echten DINT erzeugt werden kann. Diese Maßnahme 
+//erspart spätere IDT-Befehle bei jeder Verwendung der INT-Variablen
+      L     #MinOutput; // MinOutput: 16Bit
+      ITD   ; // INT -> DINT mit Vorzeichen
+      T     #dMinOutPut; 
+
+      L     #MaxOutput; // MaxOutput: 16Bit
+      ITD   ; // INT -> DINT mit Vorzeichen
+      T     #dMaxOutput; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #dMaxInput; 
+      L     #dMinInput; 
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutput; 
+      L     #dMinOutPut; 
+      -D    ; // Differenz
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #Kanal; // Eingangswert 16Bit (bei Bipolar mit Vorzeichen)
+      ITD   ; // INT -> DINT mit Vorzeichen
+      L     #dMinInput; // UnterGrenze Eingangswert
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutPut; 
+      +D    ; 
+      T     #RET_VAL; // in Rückgabewert speichern: INT
+      T     #iTmpRET; // Rückgabewert wegen INT-Vergleich in Temporärbereich
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #iTmpRET; // Rückgabewert INT mit Vorzeichen in Akku laden
+      L     #MaxOutput; // MaxOutput
+      >I    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #MinOutput; 
+      <I    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_TOLERANZ_INT" : VOID
+TITLE =Wert mit Toleranzbereich ok
+//Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IST : INT ;	//Istwert
+  SOLL : INT ;	//Sollwert
+  TOL : INT ;	//Toleranzbereich
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #SOLL; // Sollwert
+      L     #IST; // Istwert
+      -I    ; // Differenz 
+      SPP   plus; // Vorzeichen immer
+      NEGI  ; // auf positiv
+plus: L     #TOL; // Soll, Ist Differenz mit TOL vergleichen
+      <=I   ; // ist die  ABS(SOLL-IST) <= Toleranz, dann ok!
+      =     #OK; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxOK_INT" : VOID
+TITLE =Wert zwischen Min und Max? MIN <= VALUE <= MAX
+//Prüft ob der IST-Wert zwischen MIN & MAX liegt
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  VALUE : INT ;	//Zu prüfender Wert
+  MIN : INT ;	//Zulässiger Minimalwert
+  MAX : INT ;	//Zulässiger Maximalwert
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #MIN; // minmal zulässiger Wert
+      L     #VALUE; 
+      >I    ; // falls MIN > VALUE
+      SPB   NOK; // dann nicht ok
+      L     #MAX; 
+      >I    ; // falls VALUE > MAX
+      SPB   NOK; // dann nicht ok
+      =     #OK; // sonst ok
+      SAVE  ; 
+      BEA   ; 
+NOK:  CLR   ; // Wert nicht ok
+      =     #OK; 
+      SAVE  ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_BitToInt" : VOID
+TITLE =BitToInt, wandlet ein Bit in einen Integerwert
+//Je nach dem Wert des Eingangsbits wird der Wert
+//VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+//Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 12/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  BIT : BOOL ;	
+  VAL_0 : INT ;	
+  VAL_1 : INT ;	
+END_VAR
+VAR_OUTPUT
+  VAL : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      U     #BIT; 
+      SAVE  ; // Wert von Bit auf FC-EN0
+      SPB   HIGH; 
+      L     #VAL_0; 
+      SPA   SAVE; 
+HIGH: L     #VAL_1; 
+SAVE: T     #VAL; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_SelectDINT<" : VOID
+TITLE =kleineren Wert [DINT] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =kleineren Wert [DINT] in Akku 1
+
+      >D    ; // Akku 2 > Akku 1
+      BEB   ; // kleinerer Wert bereits in Akku 1
+      TAK   ; // sonst Akkus tauschen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_SelectDINT>" : VOID
+TITLE =grösseren Wert [DINT] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =grösseren Wert [DINT] in Akku 1
+
+      <D    ; // Akku 2 < Akku 1
+      BEB   ; // grösserer Wert bereits in Akku 1
+      TAK   ; // Sonst Akkus tauschen
+
+END_FUNCTION
+
+FUNCTION "m7a_ABS_DIFF_DINT" : VOID
+TITLE =Berechnet den Absolutwert der Differenz: ABS (Akku2 - Akku1)
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =
+
+      -D    ; // Differenz bilden
+      SPP   NWE; // Wenn positiv dann ENDE
+      NEGD  ; // Vorzeichen ändern
+NWE:  NOP   0; 
+
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxLimit_DINT" : VOID
+TITLE =Min/Max Begrenzung DINT; Begrenzungsanzeige im BIE-Bit / FC-ENO
+//Min- Max- Begrenzung für DINT mit Begrenzungsanzeige
+//
+//BIE bzw. FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//                  1 = Wert war nicht ok.: Begrenzung aktiv
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 7/2004
+//INTERNET: www.maagic7.de
+//
+//VERWENDUNG:
+//Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+//Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+//Störungsanzeige oder zur direkten Weiterverschaltung.
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  min : DINT ;	//minimal Wert
+  max : DINT ;	//maximal Wert
+END_VAR
+VAR_IN_OUT
+  VALUE : DINT ;	//Sollwert
+END_VAR
+BEGIN
+NETWORK
+TITLE =MIN <= VALUE <= MAX
+
+      L     #VALUE; // Sollwert
+      L     #min; // minimal Wert
+      <D    ; 
+      SPB   LIM; // Limitierung wenn VALUE < MIN
+      TAK   ; // VALUE wieder in Akku 1
+      L     #max; // Maximalwert
+      >D    ; 
+      SPB   LIM; // Limitierung wenn VALUE > MAX
+
+      CLR   ; // VKE löschen, da keine Begrenzung erfolgte
+      SAVE  ; // BIE-Bit = 0, da Wert im Bereich war; ="Keine Begrenzung"
+      BEA   ; 
+
+LIM:  T     #VALUE; // max.Wert als Sollwert ausgeben
+      SET   ; 
+      SAVE  ; // VKE->BIE (=1=): Anzeige FC-ENO Ausgang (=Begrenzung)
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_Scale_DINT" : DINT
+TITLE =Bereich Skalieren DINT
+//Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+//Ausgangswertebereich:
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//         und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//         der FC-ENO-Ausgang "1"
+//
+//z.B. Eingangswertebereich 100 -  300   
+//     Ausgangswertebereich   0 - 1000
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  dMinInput : DINT ;	
+  dMaxInput : DINT ;	
+  dValue : DINT ;	
+  dMinOutput : DINT ;	
+  dMaxOutput : DINT ;	
+END_VAR
+VAR_TEMP
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #dMaxInput; 
+      L     #dMinInput; 
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutput; 
+      L     #dMinOutput; 
+      -D    ; // Differenz
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #dValue; // Eingangswert
+      L     #dMinInput; // UnterGrenze Eingangswert
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutput; 
+      +D    ; 
+      T     #RET_VAL; // Rückgabewert
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #dMaxOutput; // MaxOutput
+      >D    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #dMinOutput; 
+      <D    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_ANA_Out_DINT" : VOID
+TITLE =Wertebereich [DINT] auf uni-/bipolaren Analogausgang skalieren
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogausgang gewählt werden.
+//   Der Wertebereich eines Analogausgangs liegt bei: 
+//      MinOutPut = 0; -27648  : unipolar; bipolar
+//      MaxOutPut = 27648
+//
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//     27649 bis 32767 : 10 bis 12V bzw. 20-24mA
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+//         der Übersteuerungsbereich liegt bei (27649..32767 : 10..12V)
+//         bzw. (-27649..-32768 : -10V..-12V
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  dMinInput : DINT ;	
+  dMaxInput : DINT ;	
+  dValue : DINT ;	
+  bipolar : BOOL ;	//0=unipolar (0..10V / 4..20mA); 1=bipolar (-10..10V)
+END_VAR
+VAR_OUTPUT
+  PAW : WORD ;	//Analogausgangswert in HEX
+  DSP_PAW : INT ;	//Anzeige Analogausgangswert INT
+END_VAR
+VAR_TEMP
+  dMinOutPut : INT ;	
+  dMaxOutPut : INT ;	
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Min- und Max- Ausgangswert für uni- und bipolar
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+      L     L#0; 
+      UN    #bipolar; 
+      SPB   weit; 
+      L     L#-27648; // max. Ausgangswert Analog  bei max. Sollwert
+weit: T     #dMinOutPut; 
+
+      L     L#27648; // max. Ausgangswert Analog  bei max. Sollwert
+      T     #dMaxOutPut; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #dMaxInput; 
+      L     #dMinInput; 
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutPut; 
+      L     #dMinOutPut; 
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #dValue; // Eingangswert
+      L     #dMinInput; // UnterGrenze Eingangswert
+      -D    ; // Differenz  DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutPut; 
+      +D    ; 
+      T     #PAW; // in Rückgabewert speichern
+      T     #DSP_PAW; // Anzeige Analogausgangswert dezimal
+NETWORK
+TITLE =FC-ENO-Ausgangs als Übersteuerungsanzeige
+
+      L     #dMaxOutPut; // MaxOutput
+      >D    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #dMinOutPut; 
+      <D    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_Analog_IN_DINT" : DINT
+TITLE =Skaliert Analogeingang uni-/bipolar auf einen Wertebereich [INT]
+//Skaliert den Wert eines Analogeingangs auf einen Wertebereich:
+//
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogeingang gewählt werden.
+//   Der Eingangswertebereich eines Analogeingangs liegt bei: 
+//      MinInput = 0; -27648  : unipolar; bipolar
+//      MaxInput = 27648
+//   Dies gilt auch für die OnBord-Eingänge der Kompakt-CPU's CPU 31xC
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//      27649..32767  :  10..12V bzw. 20..24mA
+//     -27649..-32768 : -10..-12V
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+// 
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Kanal : WORD ;	//PEW
+  dMinOutput : DINT ;	//minimaler Ausgangswert
+  dMaxOutput : DINT ;	//maximaler Ausgangswert
+  bipolar : BOOL ;	//0=Unipolar (0..10V / 4..20mA); 1=Bipolar (-10..10V)
+END_VAR
+VAR_TEMP
+  dMinInput : DINT ;	
+  dMaxInput : DINT ;	
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Grenzen des Analogeingangswertebereichs auf temporäre Variable
+//unipolar:   0..10V   : minmaler Wert von Analogeingang = 0
+//bipolar : -10..10V   : minmaler Wert von Analogeingang = -27648
+      L     L#0; // unterer Grenzwert bei unipolar (z.B. 0..10V)
+      UN    #bipolar; // falls nicht bipolar, dann ist 0 der untere Grenzwert
+      SPB   weit; 
+      L     L#-27648; // unterer Grenzwert bei bipolar (z.B. -10..10V)
+weit: T     #dMinInput; // unterer Grenzwert des Analogsignals
+
+      L     L#27648; // oberer Grenzwert des Analogsignals
+      T     #dMaxInput; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #dMaxInput; 
+      L     #dMinInput; 
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutput; 
+      L     #dMinOutput; 
+      -D    ; // Differenz
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #Kanal; // Eingangswert 16Bit (bei Bipolar mit Vorzeichen)
+      ITD   ; // INT -> DINT mit Vorzeichen
+      L     #dMinInput; // UnterGrenze Eingangswert
+      -D    ; // Differenz  
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutput; 
+      +D    ; 
+      T     #RET_VAL; // in Rückgabewert speichern: DINT
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #dMaxOutput; // MaxOutput
+      >D    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #dMinOutput; 
+      <D    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_TOLERANZ_DINT" : VOID
+TITLE =Wert mit Toleranzbereich ok
+//Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IST : DINT ;	//Istwert
+  SOLL : DINT ;	//Sollwert
+  TOL : DINT ;	//Toleranzbereich
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #SOLL; // Sollwert
+      L     #IST; // Istwert
+      -D    ; // Differenz 
+      SPP   plus; // Vorzeichen immer
+      NEGD  ; // auf positiv
+plus: L     #TOL; // Soll, Ist Differenz mit TOL vergleichen
+      <=D   ; // ist die ABS(SOLL-IST)<= Toleranz, dann ok!
+      =     #OK; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxOK_DINT" : VOID
+TITLE =Wert zwischen Min und Max? MIN <= VALUE <= MAX
+//Prüft ob der IST-Wert zwichen MIN & MAX liegt
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  VALUE : DINT ;	//Zu prüfender Wert
+  MIN : DINT ;	//Zulässiger Minimalwert
+  MAX : DINT ;	//Zulässiger Maximalwert
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #MIN; // minmal zulässiger Wert
+      L     #VALUE; 
+      >D    ; // falls MIN > VALUE
+      SPB   NOK; // dann nicht ok
+      L     #MAX; 
+      >D    ; // falls VALUE > MAX
+      SPB   NOK; // dann nicht ok
+      =     #OK; // sonst ok
+      SAVE  ; 
+      BEA   ; 
+NOK:  CLR   ; // Wert nicht ok
+      =     #OK; 
+      SAVE  ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_BitToDint" : VOID
+TITLE =BitToInt, wandlet ein Bit in einen Integerwert
+//Je nach dem Wert des Eingangsbits wird der Wert
+//VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+//Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 12/2004
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  BIT : BOOL ;	
+  VAL_0 : DINT ;	
+  VAL_1 : DINT ;	
+END_VAR
+VAR_OUTPUT
+  VAL : DINT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      U     #BIT; 
+      SAVE  ; // Wert von Bit auf FC-EN0
+      SPB   HIGH; 
+      L     #VAL_0; 
+      SPA   SAVE; 
+HIGH: L     #VAL_1; 
+SAVE: T     #VAL; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_SelectREAL<" : VOID
+TITLE =kleineren Wert [REAL] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =kleineren Wert [REAL] in Akku 1
+
+      >R    ; // Akku 2 > Akku 1
+      BEB   ; // kleinerer Wert bereits in Akku 1
+      TAK   ; // sonst Akkus tauschen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_SelectREAL>" : VOID
+TITLE =grösseren Wert [REAL] in Akku 1
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =grösseren Wert [REAL] in Akku 1
+
+      <R    ; // Akku 2 < Akku 1
+      BEB   ; // grösserer Wert bereits in Akku 1
+      TAK   ; // Sonst Akkus tauschen
+
+END_FUNCTION
+
+FUNCTION "m7a_ABS_DIFF_REAL" : VOID
+TITLE =Berechnet den Absolutwert der Differenz: ABS (Akku2 - Akku1)
+//Diese Funktion wird eigentlich nicht benötigt, da Step7 für Real-Werte den 
+//Befehl ABS kennt.
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 4/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+BEGIN
+NETWORK
+TITLE =
+
+      -R    ; // Differenz bilden
+      SPP   NWE; // Wenn positiv dann ENDE
+      NEGR  ; // Vorzeichen ändern
+NWE:  NOP   0; 
+
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxLimit_REAL" : VOID
+TITLE =Min/Max Begrenzung REAL; Begrenzungsanzeige im BIE-Bit / FC-ENO
+//Min- Max- Begrenzung für REAL mit Begrenzungsanzeige
+//
+//BIE bzw. FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//                  1 = Wert war nicht ok.: Begrenzung aktiv
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 7/2004
+//INTERNET: www.maagic7.de
+//
+//VERWENDUNG:
+//Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+//Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+//Störungsanzeige oder zur direkten Weiterverschaltung.
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  min : REAL ;	//minimal Wert
+  max : REAL ;	//maximal Wert
+END_VAR
+VAR_IN_OUT
+  VALUE : REAL ;	//Sollwert
+END_VAR
+BEGIN
+NETWORK
+TITLE =MIN <= VALUE <= MAX
+
+      L     #VALUE; // Sollwert
+      L     #min; // minimal Wert
+      <R    ; 
+      SPB   LIM; // Limitierung wenn VALUE < MIN
+      TAK   ; // VALUE wieder in Akku 1
+      L     #max; // Maximalwert
+      >R    ; 
+      SPB   LIM; // Limitierung wenn VALUE > MAX
+
+      CLR   ; // VKE löschen, da keine Begrenzung erfolgte
+      SAVE  ; // BIE-Bit = 0, da Wert im Bereich war; ="Keine Begrenzung"
+      BEA   ; 
+
+LIM:  T     #VALUE; // max.Wert als Sollwert ausgeben
+      SET   ; 
+      SAVE  ; // VKE->BIE (=1=): Anzeige FC-ENO Ausgang (=Begrenzung)
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_Scale_REAL" : REAL
+TITLE =Bereich Skalieren REAL
+//Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+//Ausgangswertebereich:
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//         und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//         der FC-ENO-Ausgang "1"
+//
+//z.B. Eingangswertebereich 100 -  300   
+//     Ausgangswertebereich   0 - 1000
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//17.07.2012   S.Maag     T RET_VAL hinzugefügt, war vergessen oder verschwunden
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  rMinInput : REAL ;	
+  rMaxInput : REAL ;	
+  rValue : REAL ;	
+  rMinOutput : REAL ;	
+  rMaxOutput : REAL ;	
+END_VAR
+VAR_TEMP
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #rMaxInput; 
+      L     #rMinInput; 
+      -R    ; // Differenz  
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #rMaxOutput; 
+      L     #rMinOutput; 
+      -R    ; // Differenz
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #rValue; // Eingangswert
+      L     #rMinInput; // UnterGrenze Eingangswert
+      -R    ; // Differenz  
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      L     #rMinOutput; 
+      +R    ; 
+      T     #RET_VAL; 
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #rMaxOutput; // MaxOutput
+      >R    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #rMinOutput; 
+      <R    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_ANA_Out_REAL" : VOID
+TITLE =Wertebereich [REAL] auf uni-/bipolaren Analogausgang skalieren
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogausgang gewählt werden.
+//   Der Wertebereich eines Analogausgangs liegt bei: 
+//      MinOutPut = 0; -27648  : unipolar; bipolar
+//      MaxOutPut = 27648
+//
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//     27649 bis 32767 : 10 bis 12V bzw. 20-24mA
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+//         der Übersteuerungsbereich liegt bei (27649..32767 : 10..12V)
+//         bzw. (-27649..-32768 : -10V..-12V
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  rMinInput : REAL ;	
+  rMaxInput : REAL ;	
+  rValue : REAL ;	
+  bipolar : BOOL ;	//0=unipolar (0..10V / 4..20mA); 1=bipolar (-10..10V)
+END_VAR
+VAR_OUTPUT
+  PAW : WORD ;	//Analogausgangswert in HEX
+  DSP_PAW : INT ;	//Anzeige Analogausgangswert INT
+END_VAR
+VAR_TEMP
+  dMinOutPut : INT ;	
+  dMaxOutPut : INT ;	
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Min- und Max- Ausgangswert für uni- und bipolar
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+      L     L#0; 
+      UN    #bipolar; 
+      SPB   weit; 
+      L     L#-27648; // max. Ausgangswert Analog  bei max. Sollwert
+weit: T     #dMinOutPut; 
+
+      L     L#27648; // max. Ausgangswert Analog  bei max. Sollwert
+      T     #dMaxOutPut; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #rMaxInput; 
+      L     #rMinInput; 
+      -R    ; // Differen
+      T     #rTemp; 
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #dMaxOutPut; 
+      L     #dMinOutPut; 
+      -D    ; // Differenz DINT
+      DTR   ; // zu        REAL
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #rValue; // Eingangswert
+      L     #rMinInput; // UnterGrenze Eingangswert
+      -R    ; // Differenz
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      RND   ; // zu Festpunkt 32Bit
+      L     #dMinOutPut; 
+      +D    ; 
+      T     #PAW; // in Rückgabewert speichern: INT
+      T     #DSP_PAW; // Anzeige Analogausgangswert dezimal
+NETWORK
+TITLE =FC-ENO-Ausgangs als Übersteuerungsanzeige
+
+      L     #dMaxOutPut; // MaxOutput
+      >D    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #dMinOutPut; 
+      <D    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_Scale_Analog_IN_REAL" : REAL
+TITLE =Skaliert Analogeingang uni-/bipolar auf einen Wertebereich [INT]
+//Skaliert den Wert eines Analogeingangs auf einen Wertebereich:
+//
+//BIPOLAR:
+//   hiermit kann zwischen unipolarem und bipolarem Analogeingang gewählt werden.
+//   Der Eingangswertebereich eines Analogeingangs liegt bei: 
+//      MinInput = 0; -27648  : unipolar; bipolar
+//      MaxInput = 27648
+//   Dies gilt auch für die OnBord-Eingänge der Kompakt-CPU's CPU 31xC
+//   Der Wert 27648 kommt zustande, da die S7 den restlichen Wertebereich bis    
+//   32767 als Überlaufbereich verwendet. 27648 entspricht immer genau 10V bzw. 
+//   20mA. 
+//   Der Übersteuerungsbereich liegt bei: 
+//      27649..32767  :  10..12V bzw. 20..24mA
+//     -27649..-32768 : -10..-12V
+//
+//FC-ENO: Übersteuerungsanzeige
+//
+//ACHTUNG: der Ausgangswert wird nicht begrenzt, aber der FC-ENO-Ausgang
+//         wird auf "1" geschaltet, wenn übersteuert wird.
+// 
+//
+//                           (MaxOutput - MinOutput)
+//Xout = (Value - MinInput) --------------------------  + MinOutput
+//                            (MaxInput - MinInput) 
+//
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Kanal : WORD ;	//PEW
+  rMinOutput : REAL ;	//minimaler Ausgangswert
+  rMaxOutput : REAL ;	//maximaler Ausgangswert
+  bipolar : BOOL ;	//0=Unipolar (0..10V / 4..20mA); 1=Bipolar (-10..10V)
+END_VAR
+VAR_TEMP
+  rMinInput : REAL ;	
+  rMaxInput : REAL ;	
+  rTemp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Grenzen des Analogeingangswertebereichs auf temporäre Variable
+//unipolar:   0..10V   : minmaler Wert von Analogeingang = 0
+//bipolar : -10..10V   : minmaler Wert von Analogeingang = -27648
+      L     0.000000e+000; // unterer Grenzwert bei unipolar (z.B. 0..10V)
+      UN    #bipolar; // falls nicht bipolar, dann ist 0 der untere Grenzwert
+      SPB   weit; 
+      L     -2.764800e+004; // unterer Grenzwert bei bipolar (z.B. -10..10V)
+weit: T     #rMinInput; // unterer Grenzwert des Analogsignals
+      L     2.764800e+004; // oberer Grenzwert des Analogsignals
+      T     #rMaxInput; 
+NETWORK
+TITLE =Eingagswertebereich berechnen
+//(MaxInput - MinInput)
+      L     #rMaxInput; 
+      L     #rMinInput; 
+      -R    ; // Differenz  
+      T     #rTemp; 
+
+NETWORK
+TITLE =Faktor aus Ausgangs- und Eingangs-Wertebereich
+// (MaxOutput - MinOutput)
+//-------------------------
+//  (MaxInput - MinInput)
+      L     #rMaxOutput; 
+      L     #rMinOutput; 
+      -R    ; // Differenz
+      L     #rTemp; 
+      /R    ; // Gleitpunktdivision
+      T     #rTemp; 
+
+NETWORK
+TITLE =skalierter Ausgangswert
+//                     (MaxOutput - MinOutput)
+// (Value - MinInput) -------------------------- + MinOutput
+//                      (MaxInput - MinInput) 
+      L     #Kanal; // Eingangswert 16Bit (bei Bipolar mit Vorzeichen)
+      ITD   ; // INT -> DINT mit Vorzeichen
+      DTR   ; // DINT->REAL
+      L     #rMinInput; // UnterGrenze Eingangswert
+      -R    ; // Differenz  
+      L     #rTemp; 
+      *R    ; // Gleitpunktmultiplikation
+      L     #rMinOutput; 
+      +R    ; 
+      T     #RET_VAL; // in Rückgabewert speichern
+NETWORK
+TITLE =FC-ENO-Ausgang als Übersteuerungsanzeige
+
+      L     #rMaxOutput; // MaxOutput
+      >R    ; // Wert > MaxOutput
+      SPB   SAVE; // Max-Wert überschritten
+      TAK   ; // Ausgangswert in Akku 1 zurueck
+      L     #rMinOutput; 
+      <R    ; 
+      SPB   SAVE; // MinWert unterschritten
+      CLR   ; 
+SAVE: SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_TOLERANZ_REAL" : VOID
+TITLE =Wert mit Toleranzbereich ok
+//Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//22.11.2012   S.Maag         Abfrage muss <=R sein (war >=R)
+//                            NEGD muss NEGR sein
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IST : REAL ;	//Istwert
+  SOLL : REAL ;	//Sollwert
+  TOL : REAL ;	//Toleranzbereich
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #SOLL; // Sollwert
+      L     #IST; // Istwert
+      -R    ; // Differenz 
+      SPP   plus; // Vorzeichen immer
+      NEGR  ; // auf positiv
+plus: L     #TOL; // Soll, Ist Differenz mit TOL vergleichen
+      <=R   ; // ist die Toleranz >= ABS(SOLL-IST), dann
+      =     #OK; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_MinMaxOK_REAL" : VOID
+TITLE =Wert zwischen Min und Max? MIN <= VALUE <= MAX
+//Prüft ob der IST-Wert zwischen MIN & MAX liegt
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  VALUE : REAL ;	//Zu prüfender Wert
+  MIN : REAL ;	//Zulässiger Minimalwert
+  MAX : REAL ;	//Zulässiger Maximalwert
+END_VAR
+VAR_OUTPUT
+  OK : BOOL ;	//Wert im Toleranzbereich
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #MIN; // minmal zulässiger Wert
+      L     #VALUE; 
+      >R    ; // falls MIN > VALUE
+      SPB   NOK; // dann nicht ok
+      L     #MAX; 
+      >R    ; // falls VALUE > MAX
+      SPB   NOK; // dann nicht ok
+      =     #OK; // sonst ok
+      SAVE  ; 
+      BEA   ; 
+NOK:  CLR   ; // Wert nicht ok
+      =     #OK; 
+      SAVE  ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_BitToReal" : VOID
+TITLE =BitToInt, wandlet ein Bit in einen Integerwert
+//Je nach dem Wert des Eingangsbits wird der Wert
+//VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+//Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 12/2004
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  BIT : BOOL ;	
+  VAL_0 : REAL ;	
+  VAL_1 : REAL ;	
+END_VAR
+VAR_OUTPUT
+  VAL : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      U     #BIT; 
+      SAVE  ; // Wert von Bit auf FC-EN0
+      SPB   HIGH; 
+      L     #VAL_0; 
+      SPA   SAVE; 
+HIGH: L     #VAL_1; 
+SAVE: T     #VAL; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_8BitStatistik" : VOID
+TITLE =Einzelbitstatistik für 8 Eingangsbits (First/Last/Count)
+//Ermittelt statistische Werte aus 8 übergebenen Einzelbits
+//
+//[OUT]
+//iFirst:    Nr. des esten Hi-Bits   (1..8; 0=kein Bit gesetzt)
+//iLast:     Nr. des letzten Hi-Bits (1..8; 0=kein Bit gesetzt)
+//iBitCount: Anzahl der Hi-Bits (Bitcount) (0..8)
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 08/2013
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//11.12.2013   S.Maag        Ausgang 'TheByte' hinzugefügt = gesammelte Bits
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IN1 : BOOL ;	
+  IN2 : BOOL ;	
+  IN3 : BOOL ;	
+  IN4 : BOOL ;	
+  IN5 : BOOL ;	
+  IN6 : BOOL ;	
+  IN7 : BOOL ;	
+  IN8 : BOOL ;	
+END_VAR
+VAR_OUTPUT
+  iFirst : INT ;	//Number of First Hi-Bit (1..8); 0 if all Lo
+  iLast : INT ;	//Number of Last Hi-Bit (1..8); 0 if all Lo
+  iBitCount : INT ;	//Number of Hi-Bits (BitCount)
+  TheByte : BYTE ;	//The Inputs as Byte
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+NETWORK
+TITLE =First HI-Bit
+
+      U     #IN1; 
+      SPB   f1; 
+      U     #IN2; 
+      SPB   f2; 
+      U     #IN3; 
+      SPB   f3; 
+      U     #IN4; 
+      SPB   f4; 
+      U     #IN5; 
+      SPB   f5; 
+      U     #IN6; 
+      SPB   f6; 
+      U     #IN7; 
+      SPB   f7; 
+      U     #IN8; 
+      SPB   f8; 
+
+      L     0; 
+      SPA   fsav; 
+f1:   L     1; 
+      SPA   fsav; 
+f2:   L     2; 
+      SPA   fsav; 
+f3:   L     3; 
+      SPA   fsav; 
+f4:   L     4; 
+      SPA   fsav; 
+f5:   L     5; 
+      SPA   fsav; 
+f6:   L     6; 
+      SPA   fsav; 
+f7:   L     7; 
+      SPA   fsav; 
+f8:   L     8; 
+fsav: T     #iFirst; 
+
+
+NETWORK
+TITLE =Last HI-Bit
+
+      U     #IN8; 
+      SPB   l8; 
+      U     #IN7; 
+      SPB   l7; 
+      U     #IN6; 
+      SPB   l6; 
+      U     #IN5; 
+      SPB   l5; 
+      U     #IN4; 
+      SPB   l4; 
+      U     #IN3; 
+      SPB   l3; 
+      U     #IN2; 
+      SPB   l2; 
+      U     #IN1; 
+      SPB   l1; 
+
+      L     0; 
+      SPA   lsav; 
+l1:   L     1; 
+      SPA   lsav; 
+l2:   L     2; 
+      SPA   lsav; 
+l3:   L     3; 
+      SPA   lsav; 
+l4:   L     4; 
+      SPA   lsav; 
+l5:   L     5; 
+      SPA   lsav; 
+l6:   L     6; 
+      SPA   lsav; 
+l7:   L     7; 
+      SPA   lsav; 
+l8:   L     8; 
+lsav: T     #iLast; 
+
+NETWORK
+TITLE =Count HI-Bits
+
+      L     0; 
+      UN    #IN1; 
+      SPB   b2; 
+      INC   1; 
+b2:   UN    #IN2; 
+      SPB   b3; 
+      INC   1; 
+b3:   UN    #IN3; 
+      SPB   b4; 
+      INC   1; 
+b4:   UN    #IN4; 
+      SPB   b5; 
+      INC   1; 
+b5:   UN    #IN5; 
+      SPB   b6; 
+      INC   1; 
+b6:   UN    #IN6; 
+      SPB   b7; 
+      INC   1; 
+b7:   UN    #IN7; 
+      SPB   b8; 
+      INC   1; 
+b8:   UN    #IN8; 
+      SPB   b9; 
+      INC   1; 
+b9:   T     #iBitCount; 
+
+
+NETWORK
+TITLE =Collect all Inputs in a single Byte
+
+      U     #IN1; 
+      =     L      0.0; 
+      U     #IN2; 
+      =     L      0.1; 
+      U     #IN3; 
+      =     L      0.2; 
+      U     #IN4; 
+      =     L      0.3; 
+      U     #IN5; 
+      =     L      0.4; 
+      U     #IN6; 
+      =     L      0.5; 
+      U     #IN7; 
+      =     L      0.6; 
+      U     #IN8; 
+      =     L      0.7; 
+
+      L     LB     0; 
+      T     #TheByte; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_1_OF_N_BITS" : VOID
+TITLE =nur 1 aus N Merkern zuslassen - der Letzte gewinnt!
+//IN: MASKE   : Bitmaske, nur die Bits, die in der Maske = 1 sind werden 
+//              ausgewertet
+//IO: BITS    : Byte mit den zu überwachenden Bits
+//IO: tmpByte : Hilfsbyte für Flankenauswertung
+//
+//Von den mit Maske selektierten Bits wird jeweils immer nur eines zugelassen. 
+//Alle anderen werden gelöscht. Das letzte Bit, welches eine postive Flanke 
+//aufweist gewinnt dabei, bleibt also erhalten.
+//
+//Diese Funktion kann man z.B. verwenden, wenn man mehrere Fahr- oder 
+//Bewegungsmerker hat, von denen immer nur einer aktiv sein darf. Somit spart man 
+//sich das gezielte Ausschalten von nicht miteinander gültigen Bewegungen. Es 
+//reicht also die neue Bewegung zu setzen, die alte wird automatisch 
+//gelöscht.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 6/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  MASKE : WORD ;	//BitMaske mit den als zu Überwachend markierten Bits
+END_VAR
+VAR_IN_OUT
+  BITS : BYTE ;	//Byte mit den zu überwachenden Bits
+  tmpByte : BYTE ;	//Hilfsbyte für Zustandsspeicherung
+END_VAR
+VAR_TEMP
+  FLKP : BYTE ;	
+  tmpBITs : BYTE ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//tmpByte: 0000 0010    // letzter Zustand
+//BITS :   1001 0011    // aktueller Zustand
+//MASKE:   0000 1111    // auszuwertende Bits
+//
+//FLK:     0000 0001    // aktuelle Flanken
+//
+//         1111 1110    // negierte Flanken
+//BITS:    1001 0011    // aktuelle Bits
+//UND:     1001 0010    // neuer Zustand von BITs
+//
+//man sieht, nur Bits, die mit Maske selektiert sind, werden bearbeitet         
+      L     #BITS; // nur Flanken aus Bits auswerten, die  
+      L     #MASKE; // mit der Maske selektiert sind
+      UW    ; 
+      L     #tmpByte; // letzten Zustand laden
+      TAK   ; // Bits wieder in Akku 1
+      T     #tmpByte; // als letzten Zustand speichern
+      TAK   ; // letzten Zustand in Akku 1 und akt Bits in Akku 2
+      XOW   ; // Flanken auswerten
+      UW    ; // Positive Flanken filtern
+      T     #FLKP; 
+      L     0; // Wenn keine Flanke, dann ENDE
+      ==I   ; 
+      BEB   ; 
+
+      L     0; // temporäre Variable auf 0 stellen
+      T     #tmpBITs; 
+
+      U     L      0.0; 
+      =     L      1.0; 
+      SPB   SAVE; 
+
+      U     L      0.1; 
+      =     L      1.1; 
+      SPB   SAVE; 
+
+      U     L      0.2; 
+      =     L      1.2; 
+      SPB   SAVE; 
+
+      U     L      0.3; 
+      =     L      1.3; 
+      SPB   SAVE; 
+
+      U     L      0.4; 
+      =     L      1.4; 
+      SPB   SAVE; 
+
+      U     L      0.5; 
+      =     L      1.5; 
+      SPB   SAVE; 
+
+      U     L      0.6; 
+      =     L      1.6; 
+      SPB   SAVE; 
+
+      U     L      0.7; 
+      =     L      0.7; 
+
+SAVE: L     #MASKE; // Bitmaske
+      INVI  ; // invertierte Bitmaske mit
+      L     #BITS; // Bits UND-Verknüpft, löscht
+      UW    ; // alle mit Maske selektieren Bits
+      L     #tmpBITs; // temporäres Byte mit aktueller Flanke
+      OW    ; // aktuell gesetztes Bit wieder in Bits eintragen
+      T     #BITS; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_1_OF_2_BITS" : VOID
+TITLE =1 AUS 2 Bits: lässt nur 1 von 2 Bits mit High-Signal zu
+//1 AUS 2 Bits: lässt nur 1 von 2 Bits mit High-Signal zu. Das letzte Signal mit 
+//positiver Flanke bleibt jeweils erhalten, das Andere wird zurückgesetzt.
+//
+//VERWENDUNG:
+//Für Richtungs- bzw. Positions- Steuersignale aus Schrittketten. Somit muss nur 
+//der jeweils aktuelle Richtungsmerker gesetzt werden, ohne den alten 
+//Richtungsmerker zu löschen. Dies hilft Flüchtigkeitsfehler bei der 
+//Programmierung zu vermeiden.
+//
+//z.B. hat man eine Bewegung die auf 2 Positionen gesteuert werden muss:
+//Positionen LINKS, RECHTS. Ohne Verwendung dieses FCs muß man bei einem 
+//Positionswchsel immer beide Richtungsmerker bearbeiten
+//  S LINKS
+//  R RECHTS
+//Mit Verwendung dieses FCs entfällt das Rücksetzen, somit ergibt sich als 
+//Steuerprogramm für LINKS nur noch
+//  S LINKS
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//21.04.2009   S.Maag      FC-ENO-Ausgang := ein Eingangsbit ist aktiv
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_IN_OUT
+  Bit1 : BOOL ;	//Merker 1
+  Bit2 : BOOL ;	//Merker 2
+  HM : BOOL ;	//Hilfsmerker
+END_VAR
+BEGIN
+NETWORK
+TITLE =Flanken der Bits prüfen und anderes Bits löschen
+//Treten die Flanken der Beiden Bits gleichtzeitig auf, so bleibt Bit1 erhalten!
+      U     #Bit1; // Bit 1 auf positive Flanke prüfen
+      FP    #HM; 
+      R     #Bit2; // wenn ja, Bit 1 löschen    
+
+      U     #Bit2; // Wenn hier noch beide Bits =1
+      U     #Bit1; 
+      R     #Bit1; // dann Bit 1 löschen   
+
+      O     #Bit1; 
+      O     #Bit2; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_1_OF_3_BITS" : VOID
+TITLE =1 AUS 3 Bits: lässt nur 1 von 3 Bits mit High-Signal zu
+//1 AUS 3 Bits: lässt nur 1 von 3 Bits mit High-Signal zu. Das letzte Signal mit 
+//positiver Flanke bleibt jeweils erhalten, die anderen beiden werden 
+//zurückgesetzt.
+//
+//VERWENDUNG:
+//Richtungs- bzw. Positions- Steuersignale aus Schrittketten. Somit muss nur der 
+//jeweils aktuelle Richtungsmerker gesetzt werden, ohne den alten Richtungsmerker 
+//zu löschen. Dies hilft Flüchtigkeitsfehler bei Programmierung zu vermeiden.
+//
+//z.B. hat man eine Bewegung die mit 2 Zylindern auf 3 Positionen gesteuert wird:
+//Positionen LINKS, MITTE, RECHTS. Ohne Verwendung dieses FCs muß man bei einem 
+//Positionswchsel immer alle 3 Richtungsmerker bearbeiten
+//  S LINKS
+//  R MITTE
+//  R RECHTS
+//Mit Verwendung dieses FCs entfällt das Rücksetzen, somit ergibt sich als 
+//Steuerprogramm für LINKS nur
+//  S LINKS
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//21.04.2009   S.Maag      FC-ENO-Ausgang := ein Eingangsbit ist aktiv
+//
+//05.01.2015   S.Maag      Flankenmerker zusammen mit Bits löschen sonst können 2
+//                         Bits aktiv werden, wenn ein gelöschtes Bit im gleichen
+//                         CPU Zyklus sofort wieder gesetzt wird.
+//                         (kommt normal nicht vor und wie man sieht ist es
+//                         erst nach 10Jahren aufgefallen!)
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_IN_OUT
+  Bit1 : BOOL ;	//Merker 1
+  Bit2 : BOOL ;	//Merker 2
+  Bit3 : BOOL ;	//Merker 3
+  tmpByte : BYTE ;	//Hilfsbyte für Zustandsspeicherung
+END_VAR
+VAR_TEMP
+  tmpBit1 : BOOL ;	
+  tmpBit2 : BOOL ;	
+  tmpBit3 : BOOL ;	
+  tmpBit4 : BOOL ;	
+  tmpBit5 : BOOL ;	
+  tmpBit6 : BOOL ;	
+  tmpBit7 : BOOL ;	
+  tmpBit8 : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Hilfsbyte in lokalen Speicherbereich zur Bitadressierung
+
+      L     #tmpByte; 
+      T     LB     0; 
+NETWORK
+TITLE =Flanken der Bits prüfen und andere Bits löschen
+//05.01.2015 S.Maag
+//R tmpBit hinzugefügt
+      U     #Bit1; // Bit 1 auf positive Flanke prüfen
+      FP    #tmpBit1; 
+      SPB   C23; // wenn ja, Bit 2 und Bit 3 löschen
+
+      U     #Bit2; // Bit 2 auf positive Flanke prüfen
+      FP    #tmpBit2; 
+      SPB   C13; // wenn ja, Bit 1 und Bit 3 löschen
+
+      U     #Bit3; 
+      FP    #tmpBit3; 
+      SPB   C12; 
+      SPA   END; 
+
+C23:  R     #Bit2; // CLR Bit 2 und Bit 3
+      R     #Bit3; 
+      R     #tmpBit2; // CLR Flankenmerker
+      R     #tmpBit3; // CLR Flankenmerker
+      SPA   END; 
+C13:  R     #Bit1; // CLR Bit 1 und Bit 3
+      R     #Bit3; 
+      R     #tmpBit1; // CLR Flankenmerker
+      R     #tmpBit3; // CLR Flankenmerker
+      SPA   END; 
+C12:  R     #Bit1; // CLR Bit 1 und Bit 2
+      R     #Bit2; 
+      R     #tmpBit1; // CLR Flankenmerker
+      R     #tmpBit2; // CLR Flankenmerker
+
+NETWORK
+TITLE =aktuelles Hilfsbyte wieder zurückschreiben
+
+END:  L     LB     0; 
+      T     #tmpByte; 
+
+      O     #Bit1; 
+      O     #Bit2; 
+      O     #Bit3; 
+      SAVE  ; 
+      CLR   ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_1_OF_4_BITS" : VOID
+TITLE =1 AUS 4 Bits: lässt nur 1 von 4 Bits mit High-Signal zu
+//1 AUS 4 Bits: lässt nur 1 von 4 Bits mit High-Signal zu. Das letzte Signal mit 
+//positiver Flanke bleibt jeweils erhalten, die anderen beiden werden 
+//zurückgesetzt.
+//
+//VERWENDUNG:
+//Richtungs- bzw. Positions- Steuersignale aus Schrittketten. Somit muss nur der 
+//jeweils aktuelle Richtungsmerker gesetzt werden, ohne den alten Richtungsmerker 
+//zu löschen. Dies hilft Flüchtigkeitsfehler bei Programmierung zu vermeiden.
+//
+//z.B. hat man eine Bewegung die mit 2 ungleich langen Zylindern auf 4 Positionen 
+//gesteuert wird:
+//Positionen LINKS, MITTE_LINKS, MITTE_RECHTS, RECHTS. Ohne Verwendung dieses FCs 
+//muß man bei einem 
+//Positionswchsel immer alle 3 Richtungsmerker bearbeiten
+//  S LINKS
+//  R MITTE_LINKS
+//  R MITTE_RECHTS
+//  R RECHTS
+//Mit Verwendung dieses FCs entfällt das Rücksetzen, somit ergibt sich als 
+//Steuerprogramm für LINKS nur noch
+//  S LINKS
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//21.04.2009   S.Maag      FC-ENO-Ausgang := ein Eingangsbit ist aktiv
+//
+//05.01.2015   S.Maag      Flankenmerker zusammen mit Bits löschen sonst können 2
+//                         Bits aktiv werden, wenn ein gelöschtes Bit im gleichen
+//                         CPU Zyklus sofort wieder gesetzt wird.
+//                         (kommt normal nicht vor und wie man sieht ist es
+//                         erst nach 10Jahren aufgefallen!)
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_IN_OUT
+  Bit1 : BOOL ;	//Merker 1
+  Bit2 : BOOL ;	//Merker 2
+  Bit3 : BOOL ;	//Merker 3
+  Bit4 : BOOL ;	//Merker 4
+  tmpByte : BYTE ;	//Hilfsbyte für Zustandsspeicherung
+END_VAR
+VAR_TEMP
+  tmpBit1 : BOOL ;	
+  tmpBit2 : BOOL ;	
+  tmpBit3 : BOOL ;	
+  tmpBit4 : BOOL ;	
+  tmpBit5 : BOOL ;	
+  tmpBit6 : BOOL ;	
+  tmpBit7 : BOOL ;	
+  tmpBit8 : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Hilfsbyte in lokalen Speicherbereich zur Bitadressierung
+
+      L     #tmpByte; 
+      T     LB     0; 
+NETWORK
+TITLE =Flanken der Bits prüfen und andere Bits löschen
+
+      U     #Bit1; // Bit 1 auf positive Flanke prüfen
+      FP    #tmpBit1; 
+      SPB   C234; // wenn ja, Bit 2/3/4 löschen
+
+      U     #Bit2; // Bit 2 auf positive Flanke prüfen
+      FP    #tmpBit2; 
+      SPB   C134; // wenn ja, Bit 1/3/4 löschen
+
+      U     #Bit3; 
+      FP    #tmpBit3; 
+      SPB   C124; 
+
+      U     #Bit4; 
+      FP    #tmpBit4; 
+      SPB   C123; 
+      SPA   END; 
+
+C234: R     #Bit2; // CLR Bit 2/3/4
+      R     #Bit3; 
+      R     #Bit4; 
+      R     #tmpBit2; // CLR Flankenmerker
+      R     #tmpBit3; // CLR Flankenmerker
+      R     #tmpBit4; // CLR Flankenmerker
+      SPA   END; 
+C134: R     #Bit1; // CLR Bit 1/3/4
+      R     #Bit3; 
+      R     #Bit4; 
+      R     #tmpBit1; // CLR Flankenmerker
+      R     #tmpBit3; // CLR Flankenmerker
+      R     #tmpBit4; // CLR Flankenmerker
+      SPA   END; 
+C124: R     #Bit1; // CLR Bit 1/2/4
+      R     #Bit2; 
+      R     #Bit4; 
+      R     #tmpBit1; // CLR Flankenmerker
+      R     #tmpBit2; // CLR Flankenmerker
+      R     #tmpBit4; // CLR Flankenmerker
+      SPA   END; 
+C123: R     #Bit1; // CLR Bit 1/2/3
+      R     #Bit2; 
+      R     #Bit3; 
+      R     #tmpBit1; // CLR Flankenmerker
+      R     #tmpBit2; // CLR Flankenmerker
+      R     #tmpBit3; // CLR Flankenmerker
+
+NETWORK
+TITLE =aktuelles Hilfsbyte wieder zurückschreiben
+
+END:  L     LB     0; 
+      T     #tmpByte; 
+
+      O     #Bit1; 
+      O     #Bit2; 
+      O     #Bit3; 
+      O     #Bit4; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_CreateS5TimeFromINT" : VOID
+TITLE =Minuten, Sekunden (im INT-Format) in das S5Time-Format wandeln
+//Umwandlung von Minuten und/oder Sekunden in das S5Time-Format mit der 
+//gümstigsten Zeitbasis. 
+//Maximal sind mit dem S5Time-Format 9990sec möglich, das entspricht 2h46min30sec 
+//oder 166min 30sec
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//24.01.2005   S.Maag    Fehler BCD Wandlung bei Zeitbasis 10sec behoben
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  MIN : INT ;	//Anzahl Minuten (max = 166min, da S5MaxTime=9990sec)
+  SEC : INT ;	//Anzahl Sekunden
+END_VAR
+VAR_OUTPUT
+  S5_TIME : S5TIME ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Umwandlung in die günstigste Zeitbasis
+//S5Time-Format Bits:
+//
+//15 | 14 | 13 | 12 | 11 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0
+//  x   x | Zeitbas.|             Zeitwert im BCD Format
+//
+//Zeitbasis : Bits fuer Zeitbasis
+//     10ms : 00
+//    100ms : 01
+//      1s  : 10
+//     10s  : 11
+      L     #MIN; // Minuten
+      L     60; // Sekunden/Minute
+      *I    ; // Sekunden von Minuten    
+      L     #SEC; // Sekunden
+      +I    ; // Sekunden gesamt
+      L     9; // bis 9 Sekunden
+      TAK   ; // Sekunden in Akku 1, Vergleichswert in Akku 2
+      >=I   ; 
+      SPB   hdst; // Zeitbasis 10ms = 1/100sec
+
+      L     99; // bis 99 Sekunden
+      TAK   ; 
+      >=I   ; 
+      SPB   zntl; // Zeitbasis 100ms = 1/10sec
+
+      L     990; // bis 990 Sekunden
+      TAK   ; 
+      >=I   ; 
+      SPB   sec; // Zeitbasis 1 Sekunde
+
+      L     9990; 
+      TAK   ; 
+      >=I   ; // falls nicht mehr als 9990 Sekunden, dann
+      SPB   zehn; // Zeitbasis Zehn Sekunden
+      TAK   ; // sonst Begrenzung: 9990 wieder in Akku 1
+
+zehn: L     10; // zuerst durch 10 teilen, da  Werte > 999 nicht mit
+      /I    ; // dem ITB Befehl in BCD gewandelt werden können. Ein SRW 4 der
+      ITB   ; // BCD Zahl geht hier nicht, da die Sekunden > 999 sein können.
+      L     W#16#3000; // Zeitbasis Zehn Sekunden
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+sec:  ITB   ; // Anzahl der Sekunden ins BCD Format
+      L     W#16#2000; // Zeitbasis Sekunden
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+zntl: ITB   ; // Anzahl der Sekunden (max, 999) ins BCD Format
+      SLW   4; // 4 Bits nach links := 1 Stelle im 10er BCD Format := *10
+      L     W#16#1000; // Zeitbasis 10ms
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+hdst: ITB   ; // Anzahl der Sekunden ins BCD Format
+      SLW   8; // 8 Bits nach links := 2 Stellen im 10er BCD Format := *100
+      L     W#16#0; // Zeitbasis 100ms
+      OW    ; // Bits für Zeitbasis einblenden
+SAVE: T     #S5_TIME; // Zeit im S5Time-Format
+NETWORK
+TITLE =FC-ENO
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_CreateIECTimeFromINT" : VOID
+TITLE =Time hh:mm:ss [INT] to IEC TIME
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//20.03.2018   S.Maag      changed from mm:ss to hh:mm:ss
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  hh : INT ;	//Hours
+  mm : INT ;	//Minutes
+  ss : INT ;	//Seconds
+END_VAR
+VAR_OUTPUT
+  IEC_TIME : TIME ;	
+END_VAR
+VAR_TEMP
+  dMilliSeconds : DINT ;	//Sekunden als Millisekunden
+END_VAR
+BEGIN
+NETWORK
+TITLE =ss to milli seconds
+
+      L     #ss; // seconds
+      ITD   ; // to DINT
+      L     L#1000; // 1sec = 1000ms
+      *D    ; 
+      T     #dMilliSeconds; // save
+
+NETWORK
+TITLE =Minutes to milli seconds
+
+      L     #mm; // Minutes
+      ITD   ; // to DINT
+      L     L#60000; // 1 min = 60000ms
+      *D    ; 
+      L     #dMilliSeconds; 
+      +D    ; 
+      T     #dMilliSeconds; 
+
+NETWORK
+TITLE =hours to milli seconds
+
+      L     #hh; // hours
+      ITD   ; // to DINT
+      L     L#3600000; // 1h = 3600.000ms
+      *D    ; 
+      L     #dMilliSeconds; 
+      +D    ; 
+      T     #IEC_TIME; 
+
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_INV_IEC_TIME" : VOID
+TITLE =IEC Zeit invertieren, Rückwärtszählung
+//IEC Zeit invertieren. Wird benötigt z.B. benötigt, wenn Ausschaltverzögerungen 
+//über SFB5 programmiert werden und die Zeitanzeige dann rückwärts laufen soll. 
+//SFB5 stellt nur einen vorwärts laufenden Timerwert zur Verfügung
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 1/2005
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  iecDauer : TIME ;	//Dauer
+  iecTimer : TIME ;	//Zeitwert vom Timer
+END_VAR
+VAR_OUTPUT
+  iecInvTime : TIME ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     #iecDauer; 
+      L     #iecTimer; 
+      -D    ; 
+      L     L#0; 
+      <D    ; 
+      SPB   SAVE; 
+      TAK   ; 
+SAVE: T     #iecInvTime; 
+NETWORK
+TITLE =FC-ENO
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_DINT_MM.SS_TO_IEC" : VOID
+TITLE =Zeit DINT MM.SS in das IEC-Zeitformat wandeln
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 1/2005
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//22.04.2014   S.Maag     Ausgang IEC-Zeit auf min. 1ms begrenzt, da 0ms = RESET 
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_OUTPUT
+  IEC_TIME : TIME ;	
+END_VAR
+VAR_IN_OUT
+  MM_SS : DINT ;	//Minuten und Sekunden z.B.: 0530 = 5m30s
+END_VAR
+VAR_TEMP
+  MM : DINT ;	//Minutenwert
+  SS : DINT ;	//Sekundenwert
+  SS_msec : DINT ;	//Sekunden als Millisekunden
+END_VAR
+BEGIN
+NETWORK
+TITLE =Minuten und Sekundenanteil aus MM.SS lösen
+
+      L     #MM_SS; // Minuten.Sekunden
+      L     L#100; 
+      MOD   ; // Modulo Division
+      T     #SS; // =Divisionsrest = Sekunden
+
+      L     #MM_SS; 
+      L     L#100; 
+      /D    ; 
+      T     #MM; 
+
+NETWORK
+TITLE =Sekundenanteil in Millisekunden umrechnen
+
+      L     #SS; // Sekunden
+      L     1000; 
+      *D    ; 
+      T     #SS_msec; // Millisekunden
+
+NETWORK
+TITLE =Minutenanteil in Millisekunden umrechnen
+//22.04.2014 IEC-Zeit auf min. 1ms begrenzt, da 0ms = RESET 
+      L     #MM; // Minuten
+      L     L#60000; // Millisekunden pro Minute
+      *D    ; 
+      L     #SS_msec; // Anteil der Sekunden
+      +D    ; // + Anteil der Minuten
+      U     >0; 
+      SPB   save; 
+      L     L#1; 
+save: T     #IEC_TIME; // ergibt gesamte Millisekunden
+
+NETWORK
+TITLE =Wenn Sekunden >59, dann 1 Minute dazu und Sekunden anpassen
+
+      L     #SS; // Sekundenwert
+      L     59; // prüfen, ob weniger als 60
+      <=D   ; // Sekunden, dann o.k.
+      SPB   NE4; 
+
+      L     #MM_SS; // Minuten.Sekunden laden
+      +     L#40; // Wenn mehr als 60Sekunden, dann müssen die fehlenden
+      T     #MM_SS; // 40 Sekunden für den Überlauf dazugezählt werden
+NE4:  NOP   0; 
+
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_IEC_TO_MM.SS_DINT" : VOID
+TITLE =IEC Zeit in DINT MM.SS wandeln
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 1/2005
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  IEC_TIME : TIME ;	
+END_VAR
+VAR_OUTPUT
+  MM_SS : DINT ;	
+END_VAR
+VAR_TEMP
+  MM : DINT ;	//Minutenwert
+  SS : DINT ;	//Sekundenwert
+END_VAR
+BEGIN
+NETWORK
+TITLE =Minuten- und Sekundenanteil
+
+      L     #IEC_TIME; 
+      L     L#60000; // Millisekunden pro Minute
+      /D    ; 
+      T     #MM; // Minuten
+
+      L     #IEC_TIME; 
+      L     L#60000; // Millisekunden pro Minute
+      MOD   ; // Restwerdivision: Rest ms
+      L     L#1000; 
+      /D    ; // Modulo Division
+      T     #SS; // =Divisionsrest = Sekunden
+
+      L     #MM; // Minuten*100 
+      L     L#100; 
+      *D    ; 
+      L     #SS; 
+      +D    ; 
+      T     #MM_SS; // Wert in MM.SS
+
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_DINT_MM.SS_TO_S5Time" : VOID
+TITLE =Zeit DINT MM.SS in das S5-Zeitformat wandeln
+//Zeiten werden als DINT-Wert mit 2 Nachkommastellen eingegeben, welche den 
+//Sekunden entsprechen. Die Minuten sind der Wert vor dem Komma. Werden Sekunden 
+//größer als 59 eingegebn, so werden diese automatisch auf Minuten umgerechnet 
+//und der eingegebene Wert MM.SS richtig angepasst.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 1/2005
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_OUTPUT
+  S5_Time : S5TIME ;	
+END_VAR
+VAR_IN_OUT
+  MM_SS : DINT ;	//Minuten und Sekunden z.B.: 0530 = 5m30s
+END_VAR
+VAR_TEMP
+  MM : INT ;	//Minutenwert
+  SS : INT ;	//Sekundenwert
+END_VAR
+BEGIN
+NETWORK
+TITLE =Minuten und Sekundenanteil aus MM.SS lösen
+
+      L     #MM_SS; // Minuten.Sekunden
+      L     L#100; 
+      MOD   ; // Modulo Division
+      T     #SS; // =Divisionsrest = Sekunden
+
+      L     #MM_SS; 
+      L     L#100; 
+      /D    ; 
+      T     #MM; 
+
+NETWORK
+TITLE =Wenn Sekunden >59, dann 1 Minute dazu und Sekunden anpassen
+
+      L     #SS; // Sekundenwert
+      L     59; // prüfen, ob weniger als 60
+      <=D   ; // Sekunden, dann o.k.
+      SPB   NE4; 
+
+      L     #MM_SS; // Minuten.Sekunden laden
+      +     L#40; // Wenn mehr als 60Sekunden, dann müssen die fehlenden
+      T     #MM_SS; // 40 Sekunden für den Überlauf dazugezählt werden
+NE4:  NOP   0; 
+
+NETWORK
+TITLE =Umwandlung in die günstigste Zeitbasis
+//S5Time-Format Bits:
+//
+//15 | 14 | 13 | 12 | 11 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0
+//  x   x | Zeitbas.|             Zeitwert im BCD Format
+//
+//Zeitbasis : Bits fuer Zeitbasis
+//     10ms : 00
+//    100ms : 01
+//      1s  : 10
+//     10s  : 11
+      L     #MM; // Minuten
+      L     60; // Sekunden/Minute
+      *D    ; // Sekunden von Minuten    
+      L     #SS; // Sekunden
+      +D    ; // Sekunden gesamt
+      L     9; // bis 9 Sekunden
+      TAK   ; // Sekunden in Akku 1, Vergleichswert in Akku 2
+      >=I   ; 
+      SPB   hdst; // Zeitbasis 10ms = 1/100sec
+
+      L     99; // bis 99 Sekunden
+      TAK   ; 
+      >=I   ; 
+      SPB   zntl; // Zeitbasis 100ms = 1/10sec
+
+      L     990; // bis 990 Sekunden
+      TAK   ; 
+      >=I   ; 
+      SPB   sec; // Zeitbasis 1 Sekunde
+
+      L     9990; 
+      TAK   ; 
+      >=I   ; // falls nicht mehr als 9990 Sekunden, dann
+      SPB   zehn; // Zeitbasis Zehn Sekunden
+      TAK   ; // sonst Begrenzung: 9990 wieder in Akku 1
+
+zehn: L     10; // zuerst durch 10 teilen, da  Werte > 999 nicht mit
+      /I    ; // dem ITB Befehl in BCD gewandelt werden können. Ein SRW 4 der
+      ITB   ; // BCD Zahl geht hier nicht, da die Sekunden > 999 sein können.
+      L     W#16#3000; // Zeitbasis Zehn Sekunden
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+sec:  ITB   ; // Anzahl der Sekunden ins BCD Format
+      L     W#16#2000; // Zeitbasis Sekunden
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+zntl: ITB   ; // Anzahl der Sekunden (max, 999) ins BCD Format
+      SLW   4; // 4 Bits nach links := 1 Stelle im 10er BCD Format := *10
+      L     W#16#1000; // Zeitbasis 10ms
+      OW    ; // Bits für Zeitbasis einblenden
+      SPA   SAVE; 
+
+hdst: ITB   ; // Anzahl der Sekunden ins BCD Format
+      SLW   8; // 8 Bits nach links := 2 Stellen im 10er BCD Format := *100
+      L     W#16#0; // Zeitbasis 100ms
+      OW    ; // Bits für Zeitbasis einblenden
+SAVE: T     #S5_Time; // Zeit im S5Time-Format
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_MMSS_BCD_TO_IEC" : VOID
+TITLE =Zeit hexadezimal MM.SS in das IEC-Zeitformat wandeln
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 10/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  MIN_BCD : BYTE ;	//Minuten als BCD-Wert
+  SEC_BCD : BYTE ;	//Sekunden als BCD-Wert
+END_VAR
+VAR_OUTPUT
+  IEC_TIME : TIME ;	
+END_VAR
+VAR_TEMP
+  SS_msec : DINT ;	//Sekunden als Millisekunden
+END_VAR
+BEGIN
+NETWORK
+TITLE =Sekundenanteil in Millisekunden umrechen
+
+      L     #SEC_BCD; // Sekunden im HEX-Format
+      SLD   12; // * 1000 = Millisekunden
+      BTD   ; // BCD->DINT 
+      T     #SS_msec; // zwischenspeichern
+
+NETWORK
+TITLE =Minutenanteil in Millisekunden umrechnen
+
+      L     #MIN_BCD; // Minuten im HEX-Format
+      SLD   12; // *1000
+      BTD   ; // BCD->DINT
+      L     L#60; // Sekunden pro Minute
+      *D    ; // *1000 *60 := Millisekunden
+      L     #SS_msec; // Anteil der Sekunden
+      +D    ; // + Anteil der Minuten
+      T     #IEC_TIME; // ergibt gesamte Millisekunden
+
+NETWORK
+TITLE =FC-ENO-Ausgang
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+END_FUNCTION
+
+FUNCTION "m7a_ZeitDauer" : VOID
+TITLE =Zeitdauer Abgelaufen?
+//Überprüft, ob seit der übergebenen Startzeit die gewünschte Dauer abgelaufen 
+//ist. Die Zeiten werden im IEC-TIME-FORMAT übergeben
+//
+//BENÖTIGTE SFCs: SFC1 - READ_CLK
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 9/2004
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//03/12/2013   S.Maag      SFC64 TimeTick Zeitdifferenz korrigiert
+//                         da 31Bit, Fehler bei Überlauf. Jetzt UC FC256
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  START_ZEIT : TIME ;	
+  DAUER : TIME ;	
+END_VAR
+VAR_OUTPUT
+  OUT_TIMER : BOOL ;	//TimerAusgang: Zeit abgelaufen
+  TIME_LEFT : TIME ;	//Restlaufzeit
+END_VAR
+VAR_TEMP
+  aktSysTime : TIME ;	//aktuelle Systemzeit
+END_VAR
+BEGIN
+NETWORK
+TITLE =aktuelle SystemZeit auslesen
+
+      CALL "TIME_TCK" (
+           RET_VAL                  := #aktSysTime);
+      NOP   0; 
+
+NETWORK
+TITLE =prüfen ob Zeit abgelaufen ist
+
+      L     #START_ZEIT; 
+      L     #aktSysTime; 
+      UC    "m7b_ABS_DIFF_S7SysTime"; // Absolute Differenz S7SytemTimer 31Bit
+      L     #DAUER; 
+      >D    ; 
+      =     #OUT_TIMER; 
+      SAVE  ; 
+      TAK   ; 
+      -D    ; 
+      T     #TIME_LEFT; 
+
+END_FUNCTION
+
+FUNCTION "m7a_CreateANY" : VOID
+TITLE =CreateANY: erzeugt ANY aus Einzelbestandteilen
+//Codierung Datentyp:
+//00h : NIL  : Nullpointer
+//01h : BOOL : Bits
+//02h : BYTE 
+//03h : CHAR
+//04h : WORD
+//05h : INT
+//06h : DWORD
+//07h : DINT
+//08h : REAL
+//09h : DATE
+//0Ah : Time_OF_DAY (TOD)
+//0Bh : TIME
+//0Ch : S5Time
+//0Dh : nicht definiert
+//0Eh : DATE_AND_TIME (DT)
+//13h : STRING
+//
+//Codierung Speicherbereich:
+//80h : P : Peripherie
+//81h : E : Eingänge
+//82h : A : Ausgänge
+//83h : M : Merker
+//84h : DB: Datenbaustein
+//85h : DI: Instanzdatenbaustein
+//86h : L : Lokaldaten (L-Stack)
+//87h : V : voriger Lokaldatenstack
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 10/2007
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//04.11.2011   S.Maag     Fehler Speicherbereichsverarbeitung mit UD statt OD
+//                        behoben
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  B1_DataType : BYTE ;	//1=Bool 2=Byte 3=Char 4=Word 5=INT 6=DW 7=DINT 8=Real 9=Date ...
+  B23_Wiederholung : INT ;	//Wiederholungsfaktor
+  B45_DB : INT ;	//DB-Nummer oder 0
+  B6_Speicher : BYTE ;	//Hex 80=P 81=E 82=A 83=M 84=DB 85=DI 86=L 87=V
+  ByteAdr : INT ;	//ByteAdresse
+  BitAdr : INT ;	//Bitadresse 0..7
+END_VAR
+VAR_OUTPUT
+  AnyPointer : ANY ;	
+END_VAR
+VAR_TEMP
+  pBit : DWORD ;	
+  AR1 : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     P##AnyPointer; 
+      LAR1  ; 
+// Byte 0 enthält immer 10h für S7
+      L     B#16#10; 
+      T     B [AR1,P#0.0]; 
+
+      L     #B1_DataType; 
+      T     B [AR1,P#1.0]; // Byte 1 = Datentyp
+
+      L     #B23_Wiederholung; 
+      T     W [AR1,P#2.0]; // Byte 2&3 = Wiederholungsfaktor
+
+      L     #B45_DB; 
+      T     W [AR1,P#4.0]; // Byte 4&5 = Datenbaustein-Nr
+
+      L     #BitAdr; 
+      L     B#16#7; // Bitadresse auf 3 Bit Begrenzen 0..7
+      UW    ; 
+      L     #ByteAdr; // ByteAdresse um 3 nach links => Pointerformat
+      SLD   3; 
+      OD    ; // ByteAdress und Bitadresse verbinden
+      T     D [AR1,P#6.0]; 
+
+      L     #B6_Speicher; 
+      T     B [AR1,P#6.0]; // Byte 6 = Speicherbereich
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_SplitAny" : VOID
+TITLE =SplitAny : Zerteilt ANY-Pointer in die relevanten Bestandteile
+//Codierung Datentyp:
+//00h : NIL  : Nullpointer
+//01h : BOOL : Bits
+//02h : BYTE 
+//03h : CHAR
+//04h : WORD
+//05h : INT
+//06h : DWORD
+//07h : DINT
+//08h : REAL
+//09h : DATE
+//0Ah : Time_OF_DAY (TOD)
+//0Bh : TIME
+//0Ch : S5Time
+//0Dh : nicht definiert
+//0Eh : DATE_AND_TIME (DT)
+//13h : STRING
+//
+//Codierung Speicherbereich:
+//80h : P : Peripherie
+//81h : E : Eingänge
+//82h : A : Ausgänge
+//83h : M : Merker
+//84h : DB: Datenbaustein
+//85h : DI: Instanzdatenbaustein
+//86h : L : Lokaldaten (L-Stack)
+//87h : V : voriger Lokaldatenstack
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 10/2007
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  AnyPointer : ANY ;	
+END_VAR
+VAR_OUTPUT
+  B1_DataType : BYTE ;	
+  B23_Wiederholung : INT ;	
+  B45_DB : INT ;	
+  B6_Speicher : BYTE ;	
+  ByteAdr : INT ;	
+  BitAdr : INT ;	
+END_VAR
+VAR_TEMP
+  AR1 : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      TAR1  #AR1; // Adressregister 1 sichern
+
+      L     P##AnyPointer; 
+      LAR1  ; 
+// Byte 0 enthält immer 10h für S7, daher nicht ausgeben
+// L     B [AR1,P#0.0]
+// T     #B0_PLC
+
+      L     B [AR1,P#1.0]; // Byte 1 = Datentyp
+      T     #B1_DataType; 
+
+      L     W [AR1,P#2.0]; // Byte 2&3 = Wiederholungsfaktor
+      T     #B23_Wiederholung; 
+
+      L     W [AR1,P#4.0]; // Byte 4&5 = Datenbaustein-Nr
+      T     #B45_DB; 
+
+      L     B [AR1,P#6.0]; // Byte 6 = Speicherbereich
+      T     #B6_Speicher; 
+
+      L     D [AR1,P#6.0]; // Byte 7&8&9 = BitPointer
+      SRD   3; // daraus ByteAdresse berechnen
+      T     #ByteAdr; 
+
+      L     B [AR1,P#9.0]; // Byte 9, Bit 0..2 = Bitadresse 
+      L     B#16#7; 
+      UW    ; 
+      T     #BitAdr; 
+
+      LAR1  #AR1; // ursprüngliches Adressregister 1 herstellen
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_SternDreieck" : VOID
+TITLE =Stern- Dreieck- Anlauf
+//Stern-Dreieck Anlauf
+//
+//IN:
+//START: Stern-Dreieck Anlauf Einschalten
+//FRG  : Freigabe
+//T_STERN: Stern Anlaufzeit im S5 Zeitformat
+//TIMER_S5: Timer im S5-Format
+//
+//InOut:
+//bTmp:  externes dauerhaftes Speicherbyte für Hilfsignale
+//
+//OUT:
+//NETZ:    Netz-Schütz
+//DREIECK: Dreick-Schütz
+//STERN:   Stern-Schütz
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 01/2006
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  START : BOOL ;	
+  FRG : BOOL ;	//Freigabe
+  T_STERN : S5TIME ;	
+  TIMER_S5 : TIMER ;	
+END_VAR
+VAR_OUTPUT
+  NETZ : BOOL ;	//Netzschütz
+  DREIECK : BOOL ;	//Dreieckschütz
+  STERN : BOOL ;	//Sternbrücke
+END_VAR
+VAR_IN_OUT
+  bTmp : BYTE ;	
+END_VAR
+VAR_TEMP
+  lb_NETZ : BOOL ;	
+  lb_DREIECK : BOOL ;	
+  lb_STERN : BOOL ;	
+  lb3 : BOOL ;	
+  lb4 : BOOL ;	
+  lb5 : BOOL ;	
+  lb6 : BOOL ;	
+  lb7 : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+
+
+NETWORK
+TITLE =Speichervariable in Lokaldaten
+
+      L     #bTmp; 
+      T     LB     0; 
+
+
+NETWORK
+TITLE =Anlaufzeit
+
+
+
+      U     #lb_NETZ; 
+      L     #T_STERN; 
+      SE    #TIMER_S5; 
+      NOP   0; 
+      NOP   0; 
+      NOP   0; 
+      NOP   0; 
+NETWORK
+TITLE =Merker Netz
+
+      U     #START; 
+      S     #lb_NETZ; 
+      U(    ; 
+      ON    #FRG; 
+      ON    #START; 
+      )     ; 
+      R     #lb_NETZ; 
+      NOP   0; 
+NETWORK
+TITLE =Merker Stern
+
+      U     #lb_NETZ; 
+      UN    #TIMER_S5; 
+      UN    #lb_DREIECK; 
+      =     #lb_STERN; 
+NETWORK
+TITLE =Merker Dreieck
+
+      U     #lb_NETZ; 
+      U     #TIMER_S5; 
+      UN    #lb_STERN; 
+      =     #lb_DREIECK; 
+NETWORK
+TITLE =Ausgang Netz
+
+      U     #lb_NETZ; 
+      =     #NETZ; 
+NETWORK
+TITLE =Ausgang Dreieck
+
+      U     #lb_DREIECK; 
+      U     #lb_NETZ; 
+      UN    #lb_STERN; 
+      =     #DREIECK; 
+NETWORK
+TITLE =Ausgang Stern
+
+      U     #lb_STERN; 
+      UN    #lb_DREIECK; 
+      =     #STERN; 
+NETWORK
+TITLE =Lokaldaten wieder in Speichervariable zurück
+
+      L     LB     0; 
+      T     #bTmp; 
+
+END_FUNCTION
+
+FUNCTION "m7a_WendeSchuetz" : VOID
+TITLE =Sichere Wendeschützschaltung mit Speicherung des Schaltzustands
+//Sichere Wendeschützschaltung mit Umschaltverzögerung:
+//
+//Über den Eingang Save kann angegeben werden, dass der aktuelle Schaltzustand 
+//bis zum nächsten Richtungswechsel gespeichert/geschaltet bleibt. Werden beide 
+//Richtungseingänge geschaltet, werden die Ausgänge sofort gelöscht. Sind beide 
+//Richtung aktiv, z.B. durch setzen des Richtungsmerkers ausserhalb des FCs, so 
+//wird die Linksdrehrichtung abgeschaltet.
+//
+//Der FC-ENO Ausgang ist "1", solange ein Richtungsausgang aktiv ist.
+//
+//SAVE = 1 :  Der Richtungsausgang bleibt solange geschaltet, bis der andere 
+//            Richtungsbefehl anliegt. Es wird dann mit der Verzögerung T 
+//            umgeschaltet. Diesen Modus kann man nur verwenden, wenn ein         
+//            vorgeschaltetes Gerät wie z.B. Spannungssteller den Motor 
+//            abschaltet.
+//
+//SAVE = 0 :  Der Richtungsausgang bleibt immer nur solange erhalten wie der 
+//            entsprechende Richtungseingang anliegt. Das Umschalten der 
+//            Richtungsausgänge wird dabei mit T verzögert.
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 3/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//12/2004    S.Maag     Richtungssignal vorhanden, auf FC-ENO Ausgang verschaltet.
+// 
+//                      Verriegelung, so daß nur 1 Richtungssignal aktiv sein kann
+//   
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  RECHTS : BOOL ;	//Richtung vorwärts
+  LINKS : BOOL ;	//Richtung rückwärts
+  SAVE : BOOL ;	//=0 : (Ausgang=Eingangssignal); =1:(Ausgang wird gesetzt)
+  T : TIMER ;	//Zeitglied
+  T_S5 : S5TIME ;	//Zeitwert Umschaltverzögerung
+END_VAR
+VAR_IN_OUT
+  OUT_R : BOOL ;	
+  OUT_L : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Ausgang für Richtung vorwärts/rechts
+
+
+      U     #RECHTS; // Eingang vorwärts
+      UN    #LINKS; // kein Rechtslauf
+      UN    #T; // Zeitsperre für einschalten nicht aktiv
+      S     #OUT_R; // Ausgang vorwärts
+      U(    ; // Ausschalten wenn Richtung rechts nicht vorhanden
+      UN    #RECHTS; // und Schaltzustand nicht gespeichert werden soll
+      UN    #SAVE; // Wenn Linksbefehl, dann aus
+      O     #LINKS; // ausschalten
+      )     ; 
+      R     #OUT_R; 
+      NOP   0; 
+NETWORK
+TITLE =Ausgang für Richtung rückwärts/links
+
+      U     #LINKS; // Eingang rückwärts
+      UN    #RECHTS; // kein Rechtslauf
+      UN    #T; // Zeitsperre für einschalten nicht aktiv
+      S     #OUT_L; // Ausgang rückwärts
+      U(    ; // Ausschalten wenn Richtung rechts nicht vorhanden
+      UN    #LINKS; // und Einschaltzustand nicht gespeichert werden soll
+      UN    #SAVE; // Wenn Rechtsbefehl, dann aus
+      O     #RECHTS; // ausschalten
+      O     ; 
+      U     #OUT_R; 
+      U     #OUT_L; 
+      )     ; 
+      R     #OUT_L; 
+      NOP   0; 
+NETWORK
+TITLE =Umschaltzeit: Zeitsperre (als Ausschaltverzögerung)
+
+      U(    ; // Nachlauf der Richtungsausgänge,
+      O     #OUT_R; // solange T noch aktiv ist kann nicht
+      O     #OUT_L; // neu eingeschaltet werden
+      )     ; 
+      L     #T_S5; 
+      SA    #T; 
+      NOP   0; 
+      NOP   0; 
+      NOP   0; 
+      NOP   0; 
+NETWORK
+TITLE =FC-ENO Ausgang
+
+      O     #OUT_R; 
+      O     #OUT_L; 
+      SAVE  ; 
+      CLR   ; 
+END_FUNCTION
+
+FUNCTION "m7a_CompareANY" : VOID
+TITLE =Compares 2 ANY-Pointer
+//[IN]
+//ANY1 : ANY-Pointer 1
+//ANY2 : ANY-Pointer 2
+//
+//[RET]
+//ENO  : TRUE if equal
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 10/2010
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME            AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  ANY1 : ANY ;	
+  ANY2 : ANY ;	
+END_VAR
+VAR_TEMP
+  AR1 : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Adressregiste 1 sichern
+//Adressregister 2 Global- und Instanz DB werden bei CALL-Aufrufen automatisch 
+//vom System gesichert, bei UC nicht!
+      TAR1  #AR1; // Adressregister 1 sichern
+
+NETWORK
+TITLE =ANY-Pointer vergleichen
+//Ein ANY umfasst 10Bytes
+      L     P##ANY1; // Pointer to INPUT Variable ANY1
+      LAR1  ; 
+
+      L     P##ANY2; // Pointer fo INPUT Variable ANY2
+      LAR2  ; 
+
+      L     D [AR1,P#0.0]; // Byte 0..3
+      L     D [AR2,P#0.0]; 
+      <>D   ; 
+      SPB   NEQ; // not equal
+      L     D [AR1,P#4.0]; // Byte 4..7
+      L     D [AR2,P#4.0]; 
+      <>D   ; 
+      SPB   NEQ; // not equal
+      L     W [AR1,P#8.0]; // Byte 8..9
+      L     W [AR2,P#8.0]; 
+      <>D   ; 
+      SPB   NEQ; // not equal
+
+      SAVE  ; // Wenn gleich
+      SPA   END; 
+
+NEQ:  CLR   ; // Daten sind ungleich
+      SAVE  ; 
+
+NETWORK
+TITLE =Adressregister 1 wieder herstellen
+
+END:  LAR1  #AR1; // ursprüngliches Adressregister 1 herstellen
+
+
+END_FUNCTION
+
+FUNCTION "m7a_Collect_Nibble" : VOID
+TITLE =Collect a Nibble (4 Bits)
+//Collects 4 Bits as a Nibble
+//
+//----------------------------------------------------------------------
+//Further Code to work wiht Nibbles
+//
+//How to Join 2 Nibbles as a single Byte
+//
+//L  bLowNibble    // load the Byte which should be the Low Nibble
+//L  W#16#0F       // Set the 4 High Bits to 0
+//UW
+//L  bHighNibble   // load the Byte which should be the High Nibble
+//SLW 4            // Shift it left 4 Bits
+//OW
+//T  TheByte
+//----------------------------------------------------------------------
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 7/2015
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  xIN1 : BOOL ;	
+  xIN2 : BOOL ;	
+  xIN3 : BOOL ;	
+  xIN4 : BOOL ;	
+END_VAR
+VAR_OUTPUT
+  xOut1 : BOOL ;	//= IN1
+  xOut2 : BOOL ;	//= IN2
+  xOut3 : BOOL ;	//= IN3
+  xOut4 : BOOL ;	//= IN4
+  bNibble : BYTE ;	//The Nibble: Bit 0..3
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     0; // clear the first Temp-Byte
+      T     LB     0; 
+
+      U     #xIN1; // collect the Bits
+      =     #xOut1; 
+      =     L      0.0; 
+
+      U     #xIN2; 
+      =     #xOut2; 
+      =     L      0.1; 
+
+      U     #xIN3; 
+      =     #xOut3; 
+      =     L      0.2; 
+
+      U     #xIN4; 
+      =     #xOut4; 
+      =     L      0.3; 
+
+      L     LB     0; // write the Nibble
+      T     #bNibble; 
+
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+
+END_FUNCTION
+
+FUNCTION "m7a_BitCount_uni" : INT
+TITLE =BitCount: Zählt die Anzahl der Bits in Akku1 : BIE:= >0
+//Zählt die Anzahl der Bits in AKKU1 und gibt diese als INT in RET_VAL zurück.
+//Der zu prüfende Wert muss vorher in den AKKU1 geladen werden. Diese 
+//Vorgehensweise ermöglicht es, unabhängig vom DatenTyp die Bits zu prüfen, was
+//mit einer Wertübergabe mittels eines Eingangsparamters des FC nicht möglich 
+//wäre.
+//
+//Die Anzahl der Bits stehen nach dem Bausteinaufruf auch im AKKU1 zur Verfügung 
+//und können von dort direkt weiterverarbeitet werden. Es ist also nicht zwingend 
+//notwendig, den Rückgabewert zu verwenden.
+//
+//(Hinweis: Durch den Bausteinaufruf wird der AKKU-Inhalt nicht verändert!)
+//
+//[CALL]
+//immer Call verwenden, ein unbedingter aufruf mittels UC ist nicht möglich, da 
+//mit UC keine Paramterübergabe möglich ist und somit ein Fehler beim Schreiben 
+//des RET_VAL erfolgt. 
+//
+//L  2#1100_0110         // 4 gesetzte Bits in AKKU1 laden
+//CALL  "BitCount_uni"   // zählt die Bits
+//       RET_VAL:=#Bits  // gibt die Anazhl (4) in Bits zurück
+//       
+//L 2                    // da die Anzahl der Bits auch im AKKU1 enthalten sind 
+//>I                     // kann gleich direkt damit weitergearbeitet und z.B.
+//="MoreThan2"           // auf mehr als 2 gesetzte Bits verglichen werden 
+//----------------------------------------------------------------------
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 16/02/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM       NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//31.07.2008  S.Maag     FC-ENO/BIE-Bit = High, wenn Anzahl der Bits >0
+//                       Adressregister 1 sichern
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_TEMP
+  AR1 : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Anzahl der gestzten Bits in Akku 1 Zählen
+//Der Wert mit den zu zählenden Bits muss vorher in Akku 1 geladen werden.
+//Die Anzahl der Bits wird dann in RET_VAL zurückgeben, steht aber auch noch
+//zusätzlich im Akku1 zur Verfügung
+      TAR1  #AR1; // Adressregister im TEMP-Bereich sichern
+      L     0; // Adressregister 1 wird als BitZaehler verwendet
+      LAR1  ; // daher auf 0 setzten
+LOOP: TAK   ; // zu prüfende Bits wieder in Akku 1     
+      SRD   1; // erstes zu Prüfendes Bit hinausschieben
+      SPZ   NEXT; // Wenn 0 dann Schleifenende prüfen
+      +AR1  P#0.1; // Bitzähler im Adressregister 1 um 1 erhöhen
+NEXT: L     0; // Vergleichswert, Bits zählen bis 0 erreicht
+      <>D   ; // Solange wiederholen bis zu prüfende Bits
+      SPB   LOOP; // den Wert 0 erreicht haben, alle Bits gezählt!
+      TAR1  ; // Anzahl Bits aus Adressregister in Akku 1
+      <>D   ; // Anzahl Bits auf 0 prüfen (mit vorheriger 0, bereits im AKKU)
+      SAVE  ; // BIE-BIT = High, wenn Anzahl der Bits<>0
+      CLR   ; // VKE wieder rücksetzen (verarbeiten)
+      T     #RET_VAL; // Anzahl Bits in Rückgabewert
+      LAR1  #AR1; // ursprüngliches Adressregister 1 wieder herstellen
+
+END_FUNCTION
+
+FUNCTION "m7a_BitCount_INT" : VOID
+TITLE =zaehlt die gesetzten Bits in einem INT-Wert : BIE:= >0
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 16/02/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM       NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//31.07.2008  S.Maag     FC-ENO = High, wenn Bit gefunden, sonst LOW
+//                       Adressregister 1 sichern
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Wert : INT ;	//zu prüfender Wert
+END_VAR
+VAR_OUTPUT
+  Bits : INT ;	//anzahl gesetzter Bits
+END_VAR
+VAR_TEMP
+  AR1 : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =Anzahl der gestzten Bits in INT Zählen
+//Die Anzahl der Bits wird dann in #Bits zurückgeben, steht aber auch noch
+//zusätzlich im Akku1 zur Verfügung
+      TAR1  #AR1; // Adressregister im TMEP-Bereich sichern
+      L     #Wert; // zu prüfenden Wert in Akku 1
+      L     0; // Adressregister 1 wird als BitZaehler verwendet
+      LAR1  ; // daher auf 0 setzten
+LOOP: TAK   ; // zu prüfende Bits wieder in Akku 1     
+      SRD   1; // erstes zu Prüfendes Bit hinausschieben
+      SPZ   NEXT; // Wenn 0 dann Schleifenende prüfen
+      +AR1  P#0.1; // Bitzähler im Adressregister 1 um 1 erhöhen
+NEXT: L     0; // Vergleichswert, Bits zählen bis 0 erreicht
+      <>D   ; // Solange wiederholen bis zu prüfende Bits
+      SPB   LOOP; // den Wert 0 erreicht haben, alle Bits gezählt!
+      TAR1  ; // Anzahl Bits aus Adressregister in Akku 1
+      <>D   ; // Anzahl Bits auf 0 prüfen (mit vorheriger 0, bereits im AKKU)
+      SAVE  ; // BIE-BIT = High, wenn Anzahl der Bits<>0
+      CLR   ; // VKE wieder rücksetzen (verarbeiten)
+      T     #Bits; // Anzahl Bits in Rückgabewert
+      LAR1  #AR1; // Adressregister wieder herstellen
+
+NETWORK
+TITLE =alternativer Code
+//    // #BitCounter & #LoopRegister im TEMP-Bereich als INT anlegen
+//
+//      L     0
+//      T     #BitCounter                 // Anzahl Bits auf 0
+//      L     2#1000000000000000          // SchleifenRegister
+//      T     #LoopRegister               // initialisieren
+//
+//      L     #Wert                       // zu prüfenden Wert in Akku 1
+//loop: SRW   1                           // 1 Bit hinausschieben
+//      SPP   inc                         // wenn positiv, dann Bit zaehlen
+//      SPA   next                        // sonst weiter mit Schleifenregister
+//
+//inc:  L     #BitCounter                 // Bit zählen
+//      +     1
+//      T     #BitCounter
+//      TAK                               // zu prüfenden Wert in Akku 1 zurück
+//
+//next: L     #LoopRegister               // SchleifenRegister auf nächstes Bit
+//      SRW   1
+//      SPP   end                         // falls positiv, dann letztes Bit != 
+//Ende
+//      T     #LoopRegister
+//      TAK   
+//      SPA   loop
+//
+//end:  L     #BitCounter                 // Anzahl Bits zurückgeben
+//      T     #Bits
+//      L     0                           // BIE-Bit=High, wenn Anzahl Bits >0 
+//      <>I   
+//      SAVE  
+//      CLR   
+//
+
+
+END_FUNCTION
+
+FUNCTION "m7a_FirstBit_INT" : VOID
+TITLE =sucht das erste gesetzte Bit in einem INT-Wert : BIE:= >0
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 16/02/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM       NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//31.07.2008  S.Maag     FC-ENO = High, wenn Bit gefunden, sonst LOW
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Value : INT ;	//zu prüfender Wert
+END_VAR
+VAR_OUTPUT
+  BitPos : INT ;	//Position des ersten gesetzten Bits
+END_VAR
+BEGIN
+NETWORK
+TITLE =Nr des ersten gesetzten Bits
+
+      L     #Value; // zu prüfenden Wert in Akku
+      L     0; // vergleichen ob Wert = 0
+      <>I   ; // dann Ende, wenn nicht muss mind. 1 Bit gesetzt sein
+      SAVE  ; // Anzahl Bits <> 0 in BIE-Bit speichern
+      SPBN  end; // ENDE, wenn Wert = 0
+      INC   1; // Schleifenzaehler in Akku 1 auf 1 stellen = BitPosition
+      TAK   ; // zu prüfende Bits in Akku 1 zurück
+Loop: SRW   1; // 1 Bit hinausschieben
+      SPP   save; // wenn poitiv, dann erstes Bit gefunden => speichern
+      TAK   ; // Schleifenzaehler in Akku 1
+      INC   1; // erhöhen Schleifenzaehler, BitNr.
+      TAK   ; // zu prüfende Bits in Akku zurück
+      SPA   Loop; // Schleife für nächstes Bit wiederholen
+save: TAK   ; // Schleifenzaehler, BitNr in Akku 1
+end:  T     #BitPos; // BitPosition zurückgeben
+
+
+END_FUNCTION
+
+FUNCTION "m7a_LastBit_INT" : VOID
+TITLE =Nr.(1..16) letztes gesetzte Bit in einem INT-Wert (1..16) 
+//BIE := Bit gefunden, Position > 0
+//
+//[IN]   
+//Value  : Wert, von dem das letzte Bit ermittelt werden soll
+//
+//[OUT]
+//BitPos : Position des letzten gesetzten Bits (1..16)
+//         Es wird 0 zurückgegeben, wenn kein Bit gesetzt ist
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 16/02/2003
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM       NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//31.07.2008  S.Maag     FC-ENO = High, wenn Bit gefunden, sonst LOW
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Value : INT ;	//zu prüfender Wert
+END_VAR
+VAR_OUTPUT
+  BitPos : INT ;	//Position des ersten gesetzten Bits
+END_VAR
+BEGIN
+NETWORK
+TITLE =Nr des letzten gesetzten Bits 
+
+      L     #Value; // zu prüfenden Wert in Akku
+      L     0; // vergleichen ob Wert = 0
+      <>I   ; // dann Ende, wenn nicht muss mind. 1 Bit gesetzt sein
+      SAVE  ; // Anzahl Bits <> 0 in BIE-Bit speichern
+      SPBN  end; // ENDE, wenn Wert = 0
+      INC   16; // Schleifenzaehler in Akku 1 auf 16 stellen = letzte BitPosition
+      TAK   ; // zu prüfende Bits in Akku 1 zurück
+Loop: SLW   1; // 1 Bit hinausschieben
+      SPP   save; // wenn poitiv, dann letztes Bit gefunden => speichern
+      TAK   ; // Schleifenzaehler in Akku 1
+      DEC   1; // Schleifenzaehler erniedrigen, BitNr.
+      TAK   ; // zu prüfende Bits in Akku zurück
+      SPA   Loop; // Schleife für nächstes Bit wiederholen
+save: TAK   ; // Schleifenzaehler, BitNr in Akku 1
+end:  T     #BitPos; // BitPosition zurückgeben
+
+END_FUNCTION
+
+FUNCTION "m7a_BitGruppen_INT" : VOID
+TITLE =zaehlt Bitgruppen in einem INT-Wert
+//Autor:    Stefan Maag
+//Datum:    12/1998 für S5
+//          05/2002 für S7
+//
+//Zählt die Bitgruppen in einem Wert und gibt deren Anzahl zurück
+//
+//Bitgruppen werden begrenzt durch Wortanfang und Wortende sowie durch Nullen.
+//Eine Bitgruppe besteht aus mindestens einer 1
+//
+//z.B.    1110 0001 0110 0010  enthält 4 Bitgruppen
+//
+//Funktion:  Druch negieren des Bitmusters werden Bitübergänge in genau negativer
+//           weise zum Ausgangsmuster erzeugt. Verschiebt man diese beiden Muster 
+//           um 1 Bit gegeneinander, so entstehen genau an den Bitübergängen des
+//           originals "1"-Paare. Diese Paare lassen sich durch den UW-Befehl
+//           separieren. Zaehlt man nun die Bits nach dem Verunden, erhält man
+//           die Anzahl der Bituebergänge im Ausgangswert. = Anzhal der Bitgruppen
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//Datum:    12/1998 für S5
+//          05/2002 für S7
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM      NAME        AENDERUNG
+//--------------------------------------------------------------------------------
+//
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  Wert : INT ;	//auf Bitgruppen zu prüfender Wert
+END_VAR
+VAR_OUTPUT
+  BitGruppen : INT ;	//Anzahl der enthaltenen Bitgruppen
+END_VAR
+VAR_TEMP
+  BitCounter : INT ;	
+  LoopRegister : INT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+      L     0; 
+      T     #BitCounter; // Anzahl Bits auf 0
+      L     2#1000000000000000; // SchleifenRegister
+      T     #LoopRegister; // initialisieren
+
+      L     #Wert; // zu prüfenden Wert in Akku 1
+      PUSH  ; // Wert auch in Akku 2 kopieren
+      SRW   1; // fuer Übergänge Bits um 1 schieben
+      INVI  ; // und negieren
+      UW    ; // UW wertet die 0-1 Übergänge aus
+
+// nun noch die Bits der 0-1 Übergänge zählen = Anzahl der Bitgruppen
+
+loop: SRW   1; // 1 Bit hinausschieben
+      SPP   inc; // wenn positiv, dann Bit zaehlen
+      SPA   next; // sonst weiter mit Schleifenregister
+
+inc:  L     #BitCounter; // Bit zählen
+      +     1; 
+      T     #BitCounter; 
+      TAK   ; // zu prüfenden Wert in Akku 1 zurück
+
+next: L     #LoopRegister; // SchleifenRegister auf nächstes Bit
+      SRW   1; 
+      SPP   end; // falls positiv, dann letztes Bit != Ende
+      T     #LoopRegister; 
+      TAK   ; 
+      SPA   loop; 
+
+end:  L     #BitCounter; // Anzahl Bits zurückgeben
+      T     #BitGruppen; 
+
+
+NETWORK
+TITLE =
+
+
+
+END_FUNCTION
+
+FUNCTION "m7b_ABS_DIFF_S7SysTime" : VOID
+TITLE =ABS_DIFF_S7SysTime : Differenz zweier S7SystemZeiten 31Bit-Werte
+//Da die S7 Systemzeit mittels SFC64 "TIME_TCK" nur 31 Bit 0..2147483647 ms
+//aufweist gibt es einen Fehler, wenn Zeitdifferenzen über eine Timerüberlauf
+//ermittelt werden. Um dies zu verhindern muss die Systemzeit auf 32Bit erweitert 
+//werden.
+//
+//Der Aufruf dieses FC ist für AWL vorgesehn, als Unconditioned Call
+//
+//L  #SysTime1
+//L  #SysTime2
+//UC FC 256
+//T  #TimeDiff
+//
+//AUTOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATUM: 13/2013
+//INTERNET: www.maagic7.de
+//
+//AENDERUNGSVERMERKE:
+//--------------------------------------------------------------------------------
+//DATUM        NAME       AENDERUNG
+//--------------------------------------------------------------------------------
+//15.01.2016   S.Maag     Fälschlich vorhandene IO-Paramter entfernt
+//--------------------------------------------------------------------------------
+//
+//HINWEISE:
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_TEMP
+  SysTimer : TIME ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =die beiden Zeitwerte müssen bereits in den Akkus stehen
+
+      SLD   1; // 1. Zeit in Akku 1 auf 32 Bit-Wert erweitern
+      TAK   ; // Akkus tauschen
+      SLD   1; // 2. Zeit auf 32 Bit-Wert erweitern
+      -D    ; // Differenz bilden (=doppelte Differenz)
+      SPPZ  pos; // If <0 THEN 
+      NEGD  ; //             'Vorzeichen umkehren' 
+pos:  SRD   1; // 32 Bit Korrektur wieder entferen TimeDiff nun in AKKU 1
+
+
+
+END_FUNCTION
+
+FUNCTION "TIME_SEC_TO_S5T" : VOID
+TITLE =Zeiteingabe DINT mit varibalen Kommastellen -> S5Time
+//Use this Function to replace the Siemens FC40 TIM_S5TI
+AUTHOR : 'S.Maag'
+VERSION : 0.1
+
+
+VAR_INPUT
+  diTime : DINT ;	//Zeiteingabe 
+  diFakt : DINT ;	//Faktor für Eingangszeit auf ms umrechnen (z.B. 100 bei Eingabe von x.x sec)
+END_VAR
+VAR_OUTPUT
+  outS5T : S5TIME ;	
+END_VAR
+VAR_TEMP
+  bS5TimeBase : BYTE ;	
+  tmpTIME : DWORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//S5-Timer is a  16Bit Value consisting of 3 BCD digits and a TimeBase
+//   
+//   TimeBase.BCD3.BCD2.BCD1
+//
+//S5-Time Bases
+//1/100sec  : 0
+//1/10sec   : 1
+//1 sec     : 2
+//10sec     : 3
+//
+//FC-ENO: TRUE  : if no error
+//        FALSE : Time is out of S5-Range: Timer output limited to the min/max 
+//                Value. S5T#0ms or S5T#9990s
+      SET   ; 
+      SAVE  ; 
+      CLR   ; 
+
+      L     0; // Standard TimeBase 1/100sec
+      T     #bS5TimeBase; // tmpByte := 0
+
+      L     #diTime; // Time-Value Input
+      L     #diFakt; // factor for Time Input
+      *D    ; 
+      T     #tmpTIME; // Time  [ms]
+      L     0; 
+      <D    ; 
+      SPB   ERR; // Error Time <0
+      TAK   ; 
+      L     L#9990000; // max. Time S5-Timer  9990.000ms
+      <=D   ; 
+      SPB   LOOP; 
+      L     W#16#3999; // Set Time to max. S5-Time 999*10sec
+      SPB   ERR; 
+LOOP: L     #tmpTIME; // calculate Time-Value and TimeBase
+      L     L#10; 
+      /D    ; 
+      T     #tmpTIME; 
+      L     L#999; 
+      <=D   ; 
+      SPB   END; 
+      L     #bS5TimeBase; // Next S5 Time Base [0/1/2/3]
+      INC   1; 
+      T     #bS5TimeBase; 
+      SPA   LOOP; // LOOP UNTIL TimeBase is found
+END:  TAK   ; // Get extracted TimeValue back to Akku1
+      DTB   ; // convert 32Bit to BCD as S5Timer needs
+      L     #bS5TimeBase; // the S5 TimeBase
+      SLW   12; // shift the TimeBase to the left end of WORD
+      OW    ; // join Time-Value and TimeBase to get S5-Timer-Format
+      SPA   save; // READY
+ERR:  CLR   ; 
+      SAVE  ; 
+save: T     #outS5T; 
+      BE    ; 
+END_FUNCTION
+

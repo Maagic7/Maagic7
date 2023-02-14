@@ -1,0 +1,617 @@
+FUNCTION "m7f_Register_To_Bytes" : VOID
+TITLE =Register_To_Bytes: Copys a WORD-Register into its Hi & Lo Byte 
+//Copys a Modbus WORD-Register into its Hi & Lo Byte
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  wRegister : WORD ;	//Value of 16-Bit ModBus Register
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_OUTPUT
+  HiByte : BYTE ;	//Hi-Byte of WORD Register
+  LoByte : BYTE ;	//Lo-Byte of WORD-Register
+END_VAR
+VAR_TEMP
+  wTmp : WORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the Register to the OutPuts LoByte & HiByte
+//If LittleEndian format of Register we change it first to BigEndian 
+//then we copy 1st Byte to HiByte and 2nd Byte to LoByte (Simens ByteOrder)
+      L     #wRegister; // ModBus 16-Bit Register as WORD
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAW   ; // Change ByteOrder from Little to Big
+save: T     #wTmp; // copy it to temp WORD
+      L     LB     0; // 1st Byte is HiByte (S7-ByteOrder)
+      T     #HiByte; 
+      L     LB     1; // 2nd Byte is LoByte (S7-ByteOrder)
+      T     #LoByte; 
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
+FUNCTION "m7f_Bytes_To_Register" : WORD
+TITLE =Bytes_To_Register: Creates a WORD-Register from Hi & Lo Byte    
+//Creates a WORD-Register from its Hi & Lo Byte
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  HiByte : BYTE ;	//HiByte
+  LoByte : BYTE ;	//LoByte
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_TEMP
+  wTmp : WORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01020304 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+//
+
+
+NETWORK
+TITLE =Copy Lo & Hi Byte to a 16-Bit WORD Register
+//We copy the Values at first in a BigEndian (Simens) ByteOrder.
+//we change ByteOrder if LittleEndian
+      L     #HiByte; // LoByte is 1st Byte
+      T     LB     0; 
+      L     #LoByte; // HiByte is 2nd Byte
+      T     LB     1; 
+      L     #wTmp; 
+
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAW   ; // Change Byte Order from Big to Little
+save: T     #RET_VAL; 
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
+FUNCTION "m7f_Registers_To_DINT" : DINT
+TITLE =Registers_To_DINT: Creates a DINT from 2 WORD-Registers
+//Creats a DINT from 2 WORD-Registers
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  wReg0 : WORD ;	//Register with lower address  (REG 0)
+  wReg1 : WORD ;	//Register with higher address (REG 1)
+  Little_Big : BOOL ;	//ByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_TEMP
+  dTmp : DINT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the 2 Registers to a S7-DINT (Big Endian)
+
+      L     #wReg0; // Register with lower Address  (REG 0)
+      T     LW     0; 
+      L     #wReg1; // Register with higher Address (REG 1)
+      T     LW     2; 
+      L     #dTmp; 
+
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAD   ; // Change ByteOrder from little to Big
+save: T     #RET_VAL; // Return the DINT
+      SET   ; 
+      SAVE  ; 
+END_FUNCTION
+
+FUNCTION "m7f_DINT_To_Registers" : VOID
+TITLE =DINT_To_Registers: Copys a DINT into 2 WORD-Registers
+//Copys a DINT into 2 WORD-Registers
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  DINT_IN : DINT ;	
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_OUTPUT
+  wReg0 : WORD ;	//Register with lower address  (REG 0)
+  wReg1 : WORD ;	//Register with higher address (REG 1)
+END_VAR
+VAR_TEMP
+  dTmp : DINT ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the DINT into the 2 Registers
+
+      L     #DINT_IN; 
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAD   ; // Change ByteOrder from Big to Little
+save: T     #dTmp; 
+
+      L     LW     0; 
+      T     #wReg0; // Register with lower Address  (REG 0)
+      L     LW     2; 
+      T     #wReg1; // Register with higher Address (REG 1)
+
+      SET   ; 
+      SAVE  ; 
+END_FUNCTION
+
+FUNCTION "m7f_Registers_To_REAL" : REAL
+TITLE =Registers_To_REAL: Creates a REAL from 2 WORD-Registers
+//Creates a REAL from 2 WORD-Registers
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  wReg0 : WORD ;	//Register with lower address  (REG 0)
+  wReg1 : WORD ;	//Register with higher address (REG 1)
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_TEMP
+  rTmp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the 2 Registers to a S7-REAL (Big Endian)
+//We check first Little/Big Encoding and change ByteOrder if necessary
+      L     #wReg0; // Register with lower Address  (REG 0)
+      T     LW     0; 
+      L     #wReg1; // Register with higher Address  (REG 1)
+      T     LW     2; 
+      L     #rTmp; 
+
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAD   ; // Change ByteOrder from little to Big
+save: T     #RET_VAL; // Return the DINT
+      SET   ; 
+      SAVE  ; 
+END_FUNCTION
+
+FUNCTION "m7f_REAL_To_Registers" : VOID
+TITLE =REAL_To_Registers: Copys a REAL into 2 WORD-Registers
+//Copys a DINT into 2 WORD-Registers
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  REAL_IN : REAL ;	
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_OUTPUT
+  wReg0 : WORD ;	//Register with lower address  (REG 0)
+  wReg1 : WORD ;	//Register with higher address (REG 1)
+END_VAR
+VAR_TEMP
+  rTmp : REAL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the REAL into the 2 Registers
+
+      L     #REAL_IN; 
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAD   ; // Change ByteOrder from Big to Little
+save: T     #rTmp; 
+
+      L     LW     0; 
+      T     #wReg0; // Register with lower Address  (REG 0)
+      L     LW     2; 
+      T     #wReg1; // Register with higher Address (REG 1)
+
+      SET   ; 
+      SAVE  ; 
+END_FUNCTION
+
+FUNCTION "m7f_Register_To_INT" : INT
+TITLE =Register_To_INT: Copys a WORD-Register into a S7-INTEGER 
+//Copys a Modbus WORD-Register into a INTEGER
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  wRegister : WORD ;	//Value of 16-Bit ModBus Register
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01-02-03-04 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+
+
+NETWORK
+TITLE =Copys the Register to the INT Output
+
+      L     #wRegister; // ModBus 16-Bit Register as WORD
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAW   ; // Change ByteOrder from Little to Big
+save: T     #RET_VAL; // copy it to temp WORD
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
+FUNCTION "m7f_INT_To_Register" : WORD
+TITLE =INT_To_Register: Creates a WORD-Register from a S7-INT   
+//Creates a WORD-Register from its Hi & Lo Byte
+//This is a auxillary function for handling of ModBus registers
+//in LittleEndian or BigEndian encoding
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 1.0
+
+
+VAR_INPUT
+  INT_IN : INT ;	
+  Little_Big : BOOL ;	//RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+VAR_TEMP
+  wTmp : WORD ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+//Little Endian: Lo-Byte first (Intel, Beckhoff, Wago)
+//Big Endian   : Hi-Byte first (Motorola, Siemens, Netzwerkprotokolle)
+//   
+//If Value 01020304 hex will be stored at memory address 1000
+//   
+//Mem. Addr : Big : Little
+//1000      : 01  : 04
+//1001      : 02  : 03
+//1002      : 03  : 02
+//1003      : 04  : 01
+//
+
+
+NETWORK
+TITLE =Copy the S7-INT to a 16-Bit WORD Register
+
+      L     #INT_IN; // HiByte is 2nd Byte
+      U     #Little_Big; // BigEndian (Siemens)
+      SPB   save; 
+      TAW   ; // Change Byte Order from Big to Little
+save: T     #RET_VAL; 
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
+FUNCTION "m7f_DINTxEXP_toDINT" : DINT
+TITLE =Calculate Value [DINT] with EXP [INT] / Value*10^EXP => dValue
+//Calculates a Value with Exponent to it's Value DINT
+//
+//EXP = -1 : shifts the comma 1 left  (/10)
+//EXP =  2 : shifts the comma 2 right (*100)
+//
+//FC.ENO : ALWAYS TRUE 
+//
+//This is used for MBus Meter (Energie Meter, Water Meter ...), where you get a 
+//DINT value and an INT Exponent from the WAGO MBus Master 
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  dValue : DINT ;	//Value [DINT]
+  iEXP : INT ;	//Exponent (INT, basis 10
+  iEXP_User : INT ;	//User defined Exponent to convert to correct range (W=>kW, kg=to ...)
+END_VAR
+VAR_TEMP
+  xMultiply : BOOL ;	
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+
+
+NETWORK
+TITLE =myDINT = dValue * EXP10(iEXP + iEXP_USER)
+//EXPsum = iEXP + iEXP_USER   // Sum of Exponents
+//
+//IF EXPsum <0 THEN
+//  myDINT = dValue / EXP10(iEXPsum)
+//ELSE
+//  myDINT = dValue * EXP10(iEXPsum)
+//END_IF
+      L     #iEXP; // EXPONENT basis 10
+      L     #iEXP_User; // the User defined Exponent
+      +I    ; 
+      U     >=0; // (iEXP + iEXP_User) >= 0
+      =     #xMultiply; 
+      SPB   pos; // If EXP >=0 THEN positiv
+      NEGI  ; // ESLE convert to positiv
+pos:  ITD   ; // INT  => DINT
+      DTR   ; // DINT => REAL
+      L     2.302585e+000; // * Ln(10) because we need basis 10 
+      *R    ; 
+      EXP   ; //  10*10*...
+      RND   ; // REAL => DINT; this is our Faktor
+      L     #dValue; 
+      TAK   ; // AKKU2 = dValue; AKKU1 = Faktor
+      U     #xMultiply; // If Multiplikation THEN
+      SPB   mul; //    Goto Multilpy
+      /D    ; //   ELSE  Divide; dValue/Faktor
+      SPA   save; 
+mul:  *D    ; // Multiply; dValue*Faktor
+save: T     #RET_VAL; // RETURN the VALUE
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
+FUNCTION "m7f_DINTxEXP_toREAL" : REAL
+TITLE =Calculate Value [DINT] with EXP [INT] / Value*10^EXP => rValue
+//Converts an Exponent (INT) to Faktor REAL 
+//
+//EXP = -1 : shifts the comma 1 left  (*0.1 == /10)
+//EXP =  2 : shifts the comma 2 right (*100)
+//
+//FC.ENO : ALWAYS TRUE
+//         
+//This is used for MBus Meter (Energie Meter, Water Meter ...), where you get a 
+//DINT value and an INT Exponent from the WAGO MBus Master 
+//
+//AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+//DATE:   3/2020
+//
+//CHANGELOG:
+//------------------------------------------------------------------------------
+//DATE         NAME        DESCRIPTION
+//------------------------------------------------------------------------------
+//
+//------------------------------------------------------------------------------
+AUTHOR : 'S.Maag'
+FAMILY : Maagic7
+VERSION : 0.1
+
+
+VAR_INPUT
+  dValue : DINT ;	//Value [DINT]
+  iEXP : INT ;	//Exponent (INT, basis 10
+  iEXP_User : INT ;	//User defined Exponent to convert to correct range (W=>kW, kg=to ...)
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+
+
+
+NETWORK
+TITLE =myREAL = dValue * EXP10(iEXP + iEXP_USER)
+
+      L     #iEXP; // EXPONENT basis 10
+      L     #iEXP_User; // the User defined Exponent
+      +I    ; 
+      ITD   ; // INT => DINT
+      DTR   ; // DINT => REAL
+      L     2.302585e+000; // * Ln(10) because we need basis 10
+      *R    ; 
+      EXP   ; // EXPONENT(iEXP)
+      L     #dValue; 
+      DTR   ; // DINT => REAL
+      *R    ; 
+      T     #RET_VAL; // RETURN the VALUE
+      SET   ; 
+      SAVE  ; 
+
+END_FUNCTION
+
