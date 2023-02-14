@@ -1,0 +1,209 @@
+FUNCTION m7_BlockCompareDWORD : BOOL
+    TITLE=    'BlockCompareDWORD' 
+
+// ==============================================================================
+// BlockCompareDWORD vergleicht 2 Datenblöcke DWORD-weise     
+// die Daten können beliebiger Natur sein. Sinn machen jeodoch
+// Felder von DINT, DWORD, REAL (z.B. ARRAYs)
+//   
+// Das Vergleichsergebnis je DWORD wird in einem Bit gespeichert
+// und in DB blkDB_BOOL übertragen. Für die beiden Datenblöcke können
+// die DB's und eine Sartadress in Byte angeben werden. 
+//     
+// Die DB-Grenzen werden automatisch geprüft. Ist der DB kleiner
+// als durch ByteAdr + NoOfDWORDs * 4, dann werden nur soviele
+// DWORD geprüft wie möglich.
+//           
+// ANWENDUNG:
+// Prüfen ganzer Parameterlisten aus REAL, DINT, DWORD Werten
+// auf einmal. Die Vergleichsergebnisse werden dabei in einen 
+// Ziel-DB aus BOOL geschrieben. 
+// Anwendungsbeispiele:
+//  - detailierter Vergleich von User-Parametern und Werkseinstellungen
+//  - detailierter Vergleich von Rezeptdaten zweier Rezepte
+//      
+// Durch die Bitweise Speicherung der Vergleichserbnisse kann
+// die BOOLsche Liste gleich für WinCC hergenommen werden, um 
+// die unterschiedlichen Werte am Bildschirm farblich hervorzuheben.
+// Die BOOLs liest man in WinCC am besten als ARRAY ein.
+// Bei Rezeptdaten kann man so z.B. darstellen, welcher Wert des
+// aktuelle geladenen Rezepts durch den User verändert wurde.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 14.07.2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION:  '1.0'
+    AUTHOR:   'S.Maag'   
+    FAMILY:   'Maagic7'     
+
+VAR_INPUT
+    NoOf_DWORDs : INT;      // No of DWORDs to compare
+    
+    blkDB1 : BLOCK_DB;      // first DataBlock
+    DB1_ByteAdr : INT;      // ByteStartAdress of our DATA in first DataBlock
+    
+    blkDB2 : BLOCK_DB;      // second DataBlock
+    DB2_ByteAdr : INT;      // ByteStartAdress of our DATA in first DataBlock
+
+    blkDB_BOOL : BLOCK_DB;  // DataBlock to store the compare result bits
+    DB_BOOL_ByteAdr : INT;  // ByteStartAdress of result bits
+END_VAR
+
+VAR_OUTPUT
+    // This values should be == NoOf_DWORDs from VAR_INPUT
+    // if there is a difference, the BLOCK size doesn't cpompare!
+    // in this case DWORDs will be compared up END of shortes BLOCK
+    dNoOfComparedDwords : DINT;         // total No of compared DWORDs
+    
+    // This values should be == NoOf_DWORDs from VAR_INPUT
+    // if lower, the BIT-BUFFER to store the compare resultus is smaller than
+    // the No of DWORDs to compare
+    dNoOfStoredResultDwords : DINT;     // total No of compared DWORDs stored in Result-Bit (blkDB_BOOL)
+    
+    dNoOfEqualDwords : DINT;    // The No of compared DWORDs which are equal
+END_VAR
+
+VAR_TEMP
+
+    L_DB1 : DINT;       // Length in bytes of BLOCK_DB1
+    L_DB2 : DINT;       // Length in bytesof BLOCK_DB2
+    L_DB_BOOL : DINT;   // Length in bytes of BLOCK_DB_BOOL (destination BLOCK for compare result)
+    
+    wBYTEs : WORD;      // Byte length of DB, returned by SFC_24 TEST_DB
+    wDBNo : WORD;       // DBNo of BLOCK-DB, Input value for SFC_24 TEST_DB
+    RET:INT;            // Return value for SFCs
+
+    idxDB1 : DINT;      // Byte-Index of blkDB1, used to read from blkDB1.DD[idxDB1] 
+    idxDB2 : DINT;      // Byte-Index of blkDB2
+    idxDB_BOOL : DINT;  // Byte-Index of blkDB_BOOL
+
+    nDWORDs : DINT;     // possible No of DWORDs to compare if blkDB1 and blkDB2 are of same size nDWORDs == VAR_INPUT: NoOf_DWORDs
+    nMax_DB1 :DINT;     // max. No of DWORDs in blkDB1 beginning from DB1_ByteAdr up to END of DB
+    nMax_DB2: DINT;     // max. No of DWORDs in blkDB2 beginning from DB1_ByteAdr up to END of DB
+    nMax_DB_BOOL: DINT; // max. No of DWORDs in blkDB_BOOL beginning from DB1_ByteAdr up to END of DB
+
+    fstLOOP : DINT;     // No of DWORDs to compare in the first LOOP (x*32)
+    sndLOOP : DINT;     // No of DWORDs to compare in the second LOOP (it's the rest which do not fill a complete 32Bit result DWORD, max. 30)
+
+    I:DINT;             // LOOP Counter
+    K:DINT;             // LOOP Counter
+    I32:DINT;           // I*32 for No of bits
+    NoOfEqual : DINT;   // Variable for counting No of equal DWORDs
+
+    DWD : DWORD;        // DWORD to store compare results 32 results packed in 1 DWORD
+    ptrDWD AT DWD : ARRAY[0..31] OF BOOL;       // Because S7 SCL don't allow direkt Bit-Adressing by DWD.n, we have to use second view for DWD as ARRAY of Bits
+    
+    xVOID : BOOL;        // Not used return value for SFCs
+    xRET : BOOL;         // Variable for FC-RET_VAL which stores the overall compare result (TRUE if all compared DWORDs are equal)
+
+END_VAR
+
+BEGIN    
+    // Call SFC_24 "TEST_DB" to get DB-Length
+    wDBNo := BLOCK_DB_TO_WORD(blkDB1);
+    RET   := TEST_DB(DB_NUMBER :=wDBNo, DB_LENGTH := wBYTEs, WRITE_PROT :=  xVOID);  // blk_DB1
+    L_DB1 := WORD_TO_DINT(wBYTEs);  // total DB lLength in Bytes
+    
+    wDBNo := BLOCK_DB_TO_WORD(blkDB2);
+    RET   := TEST_DB(DB_NUMBER :=wDBNo, DB_LENGTH := wBYTEs, WRITE_PROT :=  xVOID);  // blk_DB2
+    L_DB2 := WORD_TO_DINT(wBYTEs); // total DB lLength in Bytes
+
+    wDBNo := BLOCK_DB_TO_WORD(blkDB_BOOL);
+    RET   := TEST_DB(DB_NUMBER :=wDBNo, DB_LENGTH := wBYTEs, WRITE_PROT :=  xVOID);  // blkDB_BOOL
+    L_DB_BOOL := WORD_TO_DINT(wBYTEs); // total DB lLength in Bytes
+     
+    idxDB1 := INT_TO_DINT (DB1_ByteAdr);    // the Byte StartAdress of our Data in blkDB1
+    idxDB2 := INT_TO_DINT (DB2_ByteAdr);    // the Byte StartAdress of our Data in blkDB2
+    idxDB_BOOL := INT_TO_DINT (DB_BOOL_ByteAdr); // the Byte StartAdress of our compare results in blkDB_BOOL
+
+    nDWORDs := INT_TO_DINT(NoOf_DWORDs);    // No of DWORDs from VAR_INPUT: NoOfDWORDs)
+   
+    // max. No of DWORDs
+    
+    nMax_DB1 := (L_DB1 - idxDB1)/4;     // max. poosible No of DWORDs from ByteStart in blkDB1 to DB_END
+    nMax_DB2 := (L_DB2 - idxDB2)/4;     // max. poosible No of DWORDs from ByteStart in blkDB2 to DB_END
+    nMax_DB_BOOL := (L_DB_BOOL -idxDB_BOOL) *8;   // max. NO of DWORDs in blkDB_BOOL can store *32/4 results    
+    
+    IF nDWORDs >0 THEN
+        // nDWORDs is UserInOut
+        nDWORDs := MIN(IN1:=nDWORDs, IN2:= nMax_DB1, IN3:= nMax_DB2);     // no of DWORDs to compare or max. possible to compare
+    ELSE
+        // if nDWORDs = 0 THEN use complete DB length for comparing
+        nDWORDs := MIN(IN1:= nMax_DB1, IN2:= nMax_DB2);
+    END_IF;
+    
+    fstLOOP := (nDWORDs /32)-1 ;  // no of DWORDs to compare in the 1st outer LOOP (I) == Zero based No of DWORDs which will fill a 32Bit result DWORD
+    sndLOOP := (nDWORDs MOD 32) -1 ; // Rest No of DWORDs 0..30 which don't fill a 32Bit result DWORD, zero based
+    
+    NoOfEqual := nDWORDs;       // max. No of Equal DWORDs (counter for the No of equal)
+    xRET := TRUE;               // set xRET := True, it will stay high as long as the compare results are true
+        
+    IF fstLoop >=0 THEN
+        FOR I := 0 TO fstLOOP DO   // outer LOOP  DWORD Adress DD 
+            
+            I32:=I*32;
+            
+            FOR K :=0 TO 31 DO      // inner LOOP BitAdress .k
+                IF blkDB1.DD[idxDB1+(I32+K)*4] = blkDB2.DD[idxDB2+(I32+K)*4] THEN
+                    ptrDWD[K] := TRUE;  // the 2 DWORDs are equal, store Equal_Bit =TRUE
+                ELSE
+                    ptrDWD[K] := FALSE;  // the 2 DWORDs are not equal, store Equal_Bit = FALSE
+                    xRET := FALSE;       // FC-RETURN = FALSE; not all DWORDs are equal
+                    NoOfEqual := NoOfEqual-1;  // reduce No of equal DWORDs
+                END_IF;
+ 
+            END_FOR;
+
+            IF I32 < nMax_DB_BOOL THEN  
+                 blkDB_BOOL.DD[idxDB_BOOL+I*4]:=DWD;  // store the DWORD with the result Bits
+            END_IF;
+        END_FOR;
+    END_IF;
+
+    IF sndLoop >=0 THEN
+        I := fstLOOP + 1; // Continoue with the last DWORD  
+        I32 := I*32;
+
+        IF I32 < nMax_DB_BOOL THEN
+            DWD :=blkDB_BOOL.DD[idxDB_BOOL+I*4];    // Because less than 32 compare operations we must load org. value first
+        END_IF;
+        
+        // because the rest is less than 32, we need only inner LOOP
+        FOR K :=0 TO sndLOOP DO      // inner LOOP BitAdress .k
+            IF blkDB1.DD[idxDB1+(I32+K)*4] = blkDB2.DD[idxDB2+(I32+K)*4] THEN
+                ptrDWD[k] := TRUE;  // the 2 DWORDs are equal, store Equal_Bit =TRUE
+            ELSE
+                ptrDWD[k] := FALSE;  // the 2 DWORDs are not equal, store Equal_Bit = FALSE
+                xRET := FALSE;       // FC-RETURN = FALSE; not all DWORDs are equal
+                NoOfEqual := NoOfEqual-1;  // reduce No of equal DWORDs
+            END_IF;
+        END_FOR;
+ 
+        IF I32 < nMax_DB_BOOL THEN
+            blkDB_BOOL.DD[idxDB_BOOL+I*4]:=DWD;
+        END_IF;
+    END_IF;
+    
+    (* --------------------------------------------------
+        FC-VAR_OUTPUT
+       -------------------------------------------------- *)
+  
+    // RETRUN No of comppared DWORDS
+    dNoOfComparedDwords := nDWORDs; 
+
+    // RETURN No of DWORDs stored in the Equal-Bits in blkDB_BOOL     
+    dNoOfStoredResultDwords := MIN(IN1:= nMax_DB_BOOL, IN2:=nDWORDS);
+
+    // RETURN No of equal DWORDs
+    dNoOfEqualDwords := NoOfEqual;      
+    m7_BlockCompareDWORD := xRET;          // RETURN TRUE if all DWORDs compared are equal
+END_FUNCTION
+

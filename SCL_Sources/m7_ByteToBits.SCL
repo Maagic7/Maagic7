@@ -1,0 +1,74 @@
+FUNCTION "m7_ByteToBits" : VOID
+    TITLE = 'ByteToBits: Splitet 1 Byte in 8 Bits'
+
+// ==============================================================================
+//   Split a Byte => 8 Bits
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 4/2009
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 03.09.2018   S.Maag      Converted AWL to SCL
+//   
+// 12.08.2013   S.Maag      direkets Byteweises kopieren auf die Ausgänge
+//                          funktioniert nur, wenn die Zielbits aufeinanderfolgend
+//                          sind. (war bisher immer zufällig so)
+//                          Bits müssen immer einzeln kopiert werden!
+//    
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  TheByte : BYTE ;    
+END_VAR
+
+VAR_OUTPUT
+  Bit0 : BOOL ;    
+  Bit1 : BOOL ;    
+  Bit2 : BOOL ;    
+  Bit3 : BOOL ;    
+  Bit4 : BOOL ;    
+  Bit5 : BOOL ;    
+  Bit6 : BOOL ;    
+  Bit7 : BOOL ;    
+END_VAR
+
+VAR_TEMP
+    // because Step7-Classic do not support BYTE Structurs
+    // and not support direct BitAcces like VAR.%X0,
+    // we have to use a INT with a VIEW as BITs 
+    tmpInt : INT;
+    pInt AT tmpINT : STRUCT
+        Bit0 : BOOL;
+        Bit1 : BOOL;
+        Bit2 : BOOL;
+        Bit3 : BOOL;
+        Bit4 : BOOL;
+        Bit5 : BOOL;
+        Bit6 : BOOL;
+        Bit7 : BOOL;
+        Byte1 : BYTE;
+    END_STRUCT;
+    
+END_VAR;
+
+    tmpINT := BYTE_TO_INT(TheByte);
+    
+    Bit0 := pInt.Bit0;
+    Bit1 := pInt.Bit1;
+    Bit2 := pInt.Bit2;
+    Bit3 := pInt.Bit3;
+    Bit4 := pInt.Bit4;
+    Bit5 := pInt.Bit5;
+    Bit6 := pInt.Bit6;
+    Bit7 := pInt.Bit7;
+
+END_FUNCTION

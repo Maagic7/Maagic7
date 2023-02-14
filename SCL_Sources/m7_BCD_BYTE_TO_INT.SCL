@@ -1,0 +1,57 @@
+
+FUNCTION m7_BCD_BYTE_TO_INT : INT
+    TITLE ='2 digit BCD (Byte) to INT'
+
+// ==============================================================================
+// Converts a 2 digit BCD Value (BYTE) 0..99 TO an INT
+// Check FOR valid BCD digits because CPU will Stop IF
+// we try TO convert a non valid BCD TO an INT.
+// LIMIT automatically each digit TO MAX 9.
+// IF the BCD was valid the ENO will be TRUE
+// IF the BCD was NOT valid ENO will be FALSE
+// ==============================================================================
+//   
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    bytBCD : BYTE;
+END_VAR
+
+VAR_TEMP
+    // temporäre Variablen
+    tmpBCD : BYTE;
+    tmpDIGIT : INT;
+    tmpRET : BYTE;
+END_VAR
+
+BEGIN
+    tmpBCD := bytBCD;
+    IF (tmpBCD AND B#16#88) = 0 THEN   // Bit 3 of each digit not set; Value < 8; OK!
+        tmpRET := tmpBCD;
+    ELSIF  (tmpBCD AND B#16#66) = 0 THEN // Bits 2 & 3 of each digit not set; Value <=9; OK!
+        tmpRET := tmpBCD;
+    ELSE  // Not valid BCD one DIGIT>9, LIMIT each digit to MAX 9
+        
+        tmpDIGIT := BYTE_TO_INT(tmpBCD AND B#16#F);  // 1st digit
+        tmpRET := INT_TO_BYTE(MAX(IN1:=tmpDIGIT, IN2:=9)); // MAX #9 
+        
+        tmpDIGIT := BYTE_TO_INT(tmpBCD AND B#16#F0); // 2nd digit
+        tmpRET := tmpRET OR INT_TO_BYTE((MAX(IN1:=tmpDIGIT, IN2:=144))); // B#16#90 = 144; Max #90
+        
+        OK:=FALSE;
+    END_IF;
+
+    m7_BCD_BYTE_TO_INT := BCD_TO_INT(tmpRET);
+END_FUNCTION

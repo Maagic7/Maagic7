@@ -1,0 +1,34 @@
+FUNCTION m7_CrateTOD : TIME_OF_DAY
+    TITLE = 'Create TIME_OF_DAY Format from Hour/Minute/Second'
+
+// ==============================================================================
+// Creates TIME_OF_DAY from Hour/Minute/Second 
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    iHour : INT;            // Hour
+    iMinute : INT;          // Minute
+    iSecond : INT;          // Second
+END_VAR  
+
+VAR_TEMP
+    tmpRET : DINT;
+END_VAR
+
+BEGIN
+    m7_CrateTOD := DINT_TO_TOD( ( INT_TO_DINT(iHour)*3600 + INT_TO_DINT(iMinute)*60 + INT_TO_DINT(iSecond) )*1000 );
+END_FUNCTION

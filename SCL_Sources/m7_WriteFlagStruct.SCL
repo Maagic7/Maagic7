@@ -1,0 +1,110 @@
+
+FUNCTION m7_WriteFlagStruct : VOID
+    TITLE = 'Write the Standard FLAGs Structre; 8xBOOL + 1xBYTE'
+
+// ==============================================================================
+// Writes the Standard FLAG-Structure
+// copies the inBYTE to Flag0...Flag7 and in it's packed BYTE FLAG_BYTE
+// WriteFlagStruct can write to each UDT_FLAGs-Structure with this Format 
+//    
+// STANDARD_FLAG_STRUCT: STRUCT
+//     Flag0 : BOOL;
+//     Flag1 : BOOL;
+//     Flag2 : BOOL;
+//     Flag3 : BOOL;
+//     Flag4 : BOOL;
+//     Flag5 : BOOL;
+//     Flag6 : BOOL;
+//     Flag7 : BOOL;
+//     FLAG_BYTE : BYTE;  // contains Flag0..Flag7 in packed version
+// END_STRUCT 
+//
+// The Standard FLAG Structure contains the FLAGs as 8x single BOOL plus 
+// 1 BYTE (packed Bits). The reason for this is faster and more convinient
+// handling of FLAGs in Step7 and HMI (WinCC-Flexible)
+// In the S7-Programm we need single Bool Signals for programming.
+// in WinCC we need the Bits packed as Byte to show it convinient as an
+// 8xLED Object.
+//    
+// To have more detailed information about Flag0..Flag7 function,
+// it is possible to use WriteFlagStruct to write an UDT_FLAG-Struct like 
+// UDT_STS_FLAGs_VALVE, UDT_STS_FLAGS_PUMP
+//    
+// When using UDT_FLAGs Structure we have more detailed comments!
+//    
+// UDT_STS_FLAGs_VALVE      // Status Flags for Standard valves
+//     HAND :     BOOL;        Operation Mode: Hand    
+//     AUTO :     BOOL;        Operation Mode: Auto    
+//     AutoReady : BOOL;       Ready for AUTO operation    
+//     OPEN :     BOOL;        MSG open    
+//     CLOSED :   BOOL;        MSG closed    
+//     Q_COIL_OPEN :  BOOL;    MSG Coil open activated    
+//     Q_COIL_CLOSE :  BOOL;   MSG Coil close is activated    
+//     ERROR :         BOOL;   MSG Error            
+//     FLAGs :         BYTE;   Flags 0..7 as Byte   
+//    END_STRUCT;
+// ==============================================================================
+//     
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2018
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 03.09.2018   S.Maag      
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    inByte : BYTE;      // The Byte which contains the Bits to convert to 8xBool/1xByte Flag Structure
+END_VAR
+
+VAR_OUTPUT
+    FLAGs : STRUCT      // The Standard Flag Structure (can write to each UDT_FLAG-STRUCT with 8xBool + 1Byte)
+        Flag0 : BOOL;
+        Flag1 : BOOL;
+        Flag2 : BOOL;
+        Flag3 : BOOL;
+        Flag4 : BOOL;
+        Flag5 : BOOL;
+        Flag6 : BOOL;
+        Flag7 : BOOL;
+        FLAG_BYTE : BYTE;
+    END_STRUCT;
+END_VAR
+    
+VAR_TEMP
+    // temporary FLAGs-Structure
+    tmpFLAGs : STRUCT
+        Flag0 : BOOL;
+        Flag1 : BOOL;
+        Flag2 : BOOL;
+        Flag3 : BOOL;
+        Flag4 : BOOL;
+        Flag5 : BOOL;
+        Flag6 : BOOL;
+        Flag7 : BOOL;
+        FLAG_BYTE : BYTE;
+    END_STRUCT;
+
+    pFLAGs_BB AT tmpFLAGs : STRUCT  // 2 yte view of FLAGs Structre (like C++ UNION)
+        Byte0 : BYTE;
+        Byte1 : BYTE;
+    END_STRUCT;
+    
+END_VAR
+
+BEGIN
+
+    pFLAGs_BB.Byte0 := inByte;   // copy inByte to the 2 Bytes of tmpFLAGs
+    pFLAGs_BB.Byte1 := inByte;   // by using the 2 ByteView pFLAGs_BB
+    
+    FLAGs := tmpFLAGs;          // Copy the tmpFLAGs Structure to the FLAGs Output
+    
+    OK := TRUE;                 // Set FC.ENO := TRUE;
+END_FUNCTION

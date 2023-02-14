@@ -1,0 +1,597 @@
+
+// ACHTUNG: Stand 09.03.2019 sind die Funktionen noch nicht getestet
+
+// Funktionen existieren ebenfalls als AWL Code in der m7f_FieldBus Library
+// diese werden bisher bevorzugt verwendet, da AWL die direkte Verwendung
+// der Befehle für Tausch der Bytreihenfolge TAW, TAD unterstützt.
+
+(*
+******************************************************************************
+   This is a set OF functions FOR easier handling OF Modbus registers
+   ModBus provides a set of 64k 16-Bit registers
+   32-Bit values must be split into 2 registers by keeping the correct byte order
+   Little Endian: Lo-Byte first (Beckhoff, Wago, Intel)
+   Big Endian   : Hi-Byte first (Siemens S7, Motorola, Netzwerkprotokolle)
+   
+   If Value 01-02-03-04 hex will be stored at memory address 1000
+   we get following values at the Byte Adress 1000..1003
+   
+   Mem. Addr : Big : Little
+   1000      : 01  : 04
+   1001      : 02  : 03
+   1002      : 03  : 02
+   1003      : 04  : 01
+   
+   m7_Register_To_Bytes : Copys a Modbus WORD-Register into Hi & Lo Byte
+   m7_Bytes_To_Register : Create a WORD-Register from Hi & Lo Byte
+   
+   m7_Registers_To_DINT : Create a DINT from 2 WORD-Registers
+   m7_DINT_To_Registers : Copys a DINT into 2 WORD-Registers
+   
+   m7_Registers_To_REAL : Create a REAL from 2 WORD-Registers
+   m7_REAL_To_Registers : Copys a REAL into 2 WORD-Registers
+
+   m7_Register_To_INT : Copys a WORD-Registers into a S7-INT
+   m7_INT_To_Register : Copys a S7-INT into WORD-Registers
+******************************************************************************
+*)
+
+FUNCTION m7_Register_To_Bytes : VOID
+    TITLE = 'Copys a WORD-Register into its Hi & Lo Byte '
+
+// ==============================================================================
+// Copys a ModBus WORD-Register into Hi & Lo BYTE
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+   wRegister: WORD;     // Value of 16-Bit ModBus Register
+   Little_Big : BOOL;   // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+VAR_OUTPUT
+    HiByte : BYTE;
+    LoByte : BYTE;
+END_VAR
+
+VAR_TEMP
+    wTmp : WORD;
+    ptr_wTmp AT wTmp : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+END_VAR
+
+BEGIN
+    wTmp := wRegister;
+    
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        HiByte := ptr_wTmp.b0;
+        LoByte := ptr_wTmp.b1;
+    ELSE                        // If LittleEndian
+        LoByte := ptr_wTmp.b0;
+        HiByte := ptr_wTmp.b1;
+    END_IF;
+
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_Bytes_To_Register : WORD
+    TITLE = 'Creates a WORD-Register from Hi & Lo Byte '
+
+// ==============================================================================
+// Creates a WORD-Register from Hi & Lo BYTE
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    HiByte : BYTE;
+    LoByte : BYTE;
+    Little_Big : BOOL;   // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+VAR_TEMP
+    wTmp : WORD;
+    ptr_wTmp AT wTmp : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+END_VAR
+
+BEGIN
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        ptr_wTmp.b0 := HiByte;
+        ptr_wTmp.b1 := LoByte;
+    ELSE                        // If LittleEndian
+        ptr_wTmp.b0 := LoByte;
+        ptr_wTmp.b1 := HiByte;
+    END_IF;
+
+    m7_Bytes_To_Register := wTmp;
+    
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_Registers_To_DINT : DINT
+    TITLE = 'Creates a DINT from 2 WORD-Registers'
+
+// ==============================================================================
+// Creates a DINT from 2 WORD-Registers
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    wReg0 : WORD;  // Register with lower Address (REG 0)
+    wReg1 : WORD;  // Register with higher Address (REG 0)
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+
+VAR_TEMP
+    dTmp : DINT;
+    ptr_dTmp AT dTmp : STRUCT
+        Reg0 : WORD;
+        Reg1 : WORD;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wB : WORD;  // Memory for Register Value
+    ptr_wB AT wB : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+
+END_VAR
+
+BEGIN
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        ptr_dTmp.Reg0 := wReg0;
+        ptr_dTmp.Reg1 := wReg1;
+    ELSE                        // If LittleEndian
+        // Change ByteOrder of wReg0
+        wA := wReg0;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        ptr_dTmp.Reg1 := wB;    // dTmp.Reg1 = ByteSwap(wReg0)
+ 
+         // Change ByteOrder of wReg1
+        wA := wReg1;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        ptr_dTmp.Reg0 := wB;    // dTmp.Reg0 = ByteSwap(wReg1)
+    
+    END_IF;
+
+    m7_Registers_To_DINT:= dTmp; // Return the DINT value
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_DINT_To_Registers : VOID
+    TITLE = 'Copys a DINT into 2 WORD-Registers'
+
+// ==============================================================================
+// Copys a DINT into 2 WORD-Registers
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    DINT_IN : DINT;
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+VAR_OUTPUT
+    wReg0 : WORD;
+    wReg1 : WORD;
+END_VAR
+
+
+VAR_TEMP
+    dTmp : DINT;
+    ptr_dTmp AT dTmp : STRUCT
+        Reg0 : WORD;
+        Reg1 : WORD;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wB : WORD;  // Memory for Register Value
+    ptr_wB AT wB : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+END_VAR
+
+BEGIN
+
+    dTmp := DINT_IN;
+    
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        wReg0 := ptr_dTmp.Reg0;
+        wReg1 := ptr_dTmp.Reg1;
+    ELSE                        // If LittleEndian
+        // Change ByteOrder of wReg0
+        wA := ptr_dTmp.Reg0;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        wReg1 := wB;    // wReg1 = ByteSwap(dTmp.Reg0)
+ 
+         // Change ByteOrder of wReg1
+        wA := ptr_dTmp.Reg1;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        wReg0 := wB;    // wReg0 = ByteSwap(dTmp.Reg1)
+    
+    END_IF;
+    
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_Registers_To_REAL : REAL
+    TITLE = 'Creates a REAL from 2 WORD-Registers'
+
+// ==============================================================================
+// Creates a REAL from 2 WORD-Registers
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    wReg0 : WORD;  // Register with lower Address (REG 0)
+    wReg1 : WORD;  // Register with higher Address (REG 0)
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+
+VAR_TEMP
+    rTmp : REAL;
+    ptr_rTmp AT rTmp : STRUCT
+        Reg0 : WORD;
+        Reg1 : WORD;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wB : WORD;  // Memory for Register Value
+    ptr_wB AT wB : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+
+END_VAR
+
+BEGIN
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        ptr_rTmp.Reg0 := wReg0;
+        ptr_rTmp.Reg1 := wReg1;
+    ELSE                        // If LittleEndian
+        // Change ByteOrder of wReg0
+        wA := wReg0;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        ptr_rTmp.Reg1 := wB;    // rTmp.Reg1 = ByteSwap(wReg0)
+ 
+         // Change ByteOrder of wReg1
+        wA := wReg1;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        ptr_rTmp.Reg0 := wB;    // rTmp.Reg0 = ByteSwap(wReg1)
+    
+    END_IF;
+
+    m7_Registers_To_REAL:= rTmp; // Return the REAL value
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_REAL_To_Registers : VOID
+    TITLE = 'Copys a REAL into 2 WORD-Registers'
+
+// ==============================================================================
+// Copys a REAL into 2 WORD-Registers
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    REAL_IN : REAL;
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+VAR_OUTPUT
+    wReg0 : WORD;
+    wReg1 : WORD;
+END_VAR
+
+
+VAR_TEMP
+    rTmp : REAL;
+    ptr_rTmp AT rTmp : STRUCT
+        Reg0 : WORD;
+        Reg1 : WORD;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wB : WORD;  // Memory for Register Value
+    ptr_wB AT wB : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+END_VAR
+
+BEGIN
+
+    rTmp := REAL_IN;
+    
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        wReg0 := ptr_rTmp.Reg0;
+        wReg1 := ptr_rTmp.Reg1;
+    ELSE                        // If LittleEndian
+        // Change ByteOrder of wReg0
+        wA := ptr_rTmp.Reg0;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        wReg1 := wB;    // wReg1 = ByteSwap(rTmp.Reg0)
+ 
+         // Change ByteOrder of wReg1
+        wA := ptr_rTmp.Reg1;
+        ptr_wB.b0 := ptr_wA.b1;
+        ptr_wB.b1 := ptr_wA.b0;
+        wReg0 := wB;    // wReg0 = ByteSwap(rTmp.Reg1)
+    
+    END_IF;
+    
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_Register_To_INT : DINT
+    TITLE = 'Copys a WORD-Register into a S7-INT'
+
+// ==============================================================================
+// Copys a WORD-Register into a S7-INT
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    wRegister : WORD;   // Register (WORD)
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+
+VAR_TEMP
+    iTmp : INT;
+    ptr_iTmp AT iTmp : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+END_VAR
+
+    IF Little_Big THEN          // If BigEndian (Siemens Encoding)
+        iTmp := WORD_TO_INT(wRegister);      // Copy the Register directly
+    ELSE                        // If LittleEndian
+        // Change ByteOrder of wRegister: iTmp := ByteSwap(wRegister)
+        wA := wRegister;
+        ptr_iTmp.b0 := ptr_wA.b1;
+        ptr_iTmp.b1 := ptr_wA.b0;
+    END_IF;
+
+    m7_Register_To_INT:= iTmp; // Return the INT value
+END_FUNCTION
+
+
+// ******************************************************************************
+
+
+FUNCTION m7_INT_To_Register : WORD
+    TITLE = 'Copys a S7-INT into a WORD-Registers'
+
+// ==============================================================================
+// Copys a S7-INT into a WORD-Register
+// This is a auxillary FUNCTION FOR handling OF ModBus registers
+// in LittleEndian OR BigEndian encoding
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    INT_IN : INT;
+    Little_Big : BOOL;  // RegisterByteOrder: 0=LittleEndian (Intel); 1=BigEndian (Motorla,Siemens)
+END_VAR
+
+VAR_OUTPUT
+END_VAR
+
+
+VAR_TEMP
+    wTmp : WORD;
+    ptr_wTmp AT wTmp : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;
+    
+    wA : WORD;  // Memory for Register Value
+    ptr_wA AT wA : STRUCT
+        b0 : BYTE;
+        b1 : BYTE;
+    END_STRUCT;   
+END_VAR
+
+BEGIN
+
+    IF Little_Big THEN                  // If BigEndian (Siemens Encoding)
+        wTmp := INT_TO_WORD(INT_IN);    // Copy iTemp directly
+    ELSE   
+        // If LittleEndian
+        wA := INT_TO_WORD(INT_IN);
+        // wTmp := ByteSwap(wA)
+        ptr_wTmp.b0 := ptr_wA.b1;
+        ptr_wTmp.b1 := ptr_wA.b0;
+    END_IF;
+  
+    m7_INT_To_Register := wTmp;
+END_FUNCTION

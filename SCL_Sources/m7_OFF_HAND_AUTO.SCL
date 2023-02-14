@@ -1,0 +1,225 @@
+FUNCTION "m7_OFF_HAND_AUTO" : Void
+    TITLE = 'Mode OFF/HAND/AUTO'
+
+// ==============================================================================
+// Betriebsartenumschaltung AUS/HAND/AUTO mit TriState Schaltfunktion
+// Es kann wahlweise über OFF, SET_HAND und SET_AUTO oder einen Softwareschalter
+// vom OP/PC geschaltet werden. Alle Schaltfunktionen sind parallel anwendbar. Bei
+// einer Schaltstellungsänderung wird der Softwareschalter automatisch angepaßt.
+//    
+// Verwendung: Konsistente Betriebsartenumschaltung AUS/HAND/OFF von
+// HMI (Softwareschalter) und Vor-Ort-Tasten
+//   
+// Hinweis   : OFF hat die höchste priorität, dann Hand, dann AUTO
+// Die Binäreingänge haben Vorrang vor dem Softwareschalter.
+// Werden die Binäreingänge nicht benötigt, dann mit FALSE
+// beschalten.
+//    
+// [IN]
+// OFF       : Hi an diesem Eingang Schaltet auf AUS - höchste Priotiätät
+// SET_MAN   : Schaltet um auf den Zustand 1: HAND=1, AUTO=0
+// SET_AUTO  : Schaltet um auf den Zustand 2: HAND=0, AUTO=1
+//    
+// FRG_SOFT  : Freigabe für Softwareschalter. Mit LO an wird der Softwareschalter
+// gesperrt. Es wird nur die Umschaltfunktion des Softwareschalters
+// gesperrt. Die aktuelle Schaltstellung wird weiterhin angezeigt.
+//    
+// [IN_OUT]
+// S_SOFT    : Softwareschalter im INT-Format 0:=AUS; 1:=HAND; 2:=AUTO;
+// memByte: statisches Hilfbyte für Zustandsspeicherung
+//    
+// S_SOFT: Softwareschalter 0/1/2 eines Softwareschalter,
+// z.B. von OP, Visualisierung
+// 0 : Hand=0, Auto=0
+// 1 : Hand=1, Auto=0
+// 2 : Hand=0, Auto=1
+//    
+// [OUT]
+// HAND      : Ausgang Schaltzustand HAND
+// AUTO      : Ausgang Schaltzustand AUTO
+//    
+// FC_ENO    : Ausgang ist 1, wenn ein Ereignis OFF/HAND/AUTO auftritt, dass druch
+//             den S_SOFT ausgelöst wurde
+//    
+// SOURCE: basiert auf Kombination von FC48 'TriStateSwitch' und FC45 'Hand/Auto'
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 6/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 13.03.2021   S.Maag    added changes from STL Version 03.09.218
+//                        - added FRG_AUTO          
+//
+// 01.09.2018   S.Maag    Converted the STL Source to SCL 
+//                        (prepared to use with S7-1200 and CodeSys PLC)
+//                        Changed FC.ENO from EVENT_MODE_CHANGE to
+//                                            EVENT_MODE_CHANGE_BY_SoftSwitch
+//                                it's now TRUE only when the Software Switch
+//                                was operated (use as indication for Operator/HMI action)
+// ------------------------------------------------------------------------------
+    
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+   VAR_INPUT 
+      OFF : Bool;   // Eingang für Ausschalter
+      SET_HAND : Bool;   // Eingang für Zustand 1 (Hand) einschalten
+      SET_AUTO : Bool;   // Eingang für Zustand 2 (Auto) einschalten
+      FRG_AUTO : BOOL;   // Automatik erlauben: Bei Übergang 1->0 wird auf AUS geschaltet
+      FRG_SOFT : BOOL;   // Freigabe für Softwareschalter
+   END_VAR
+
+   VAR_OUTPUT 
+      HAND : Bool;   // HAND
+      AUTO : Bool;   // AUTO
+      EVT_OFF : Bool;   // Ereignis auf AUS geschaltet
+      EVT_HAND : Bool;   // Ereignis auf Hand umgeschaltet
+      EVT_AUTO : Bool;   // Ereignis auf Auto umgeschaltet
+      DSP_MODE : Int;   // Anzeige Betriebsart 0:=AUS; 1:=Hand; 2:=Auto
+   END_VAR
+
+   VAR_IN_OUT 
+      S_SOFT : Int;   // Softwareschalter
+      memByte : Byte;   // statischer Hiflsspeicher
+   END_VAR
+
+   VAR_TEMP 
+      mI : INT;
+      pB AT mI : Struct   // Pointer to mB AS STRUCT (like a C++ UNION)
+         lb_HAND : Bool;
+         lb_AUTO : Bool;
+         lb2 : Bool;
+         lb_LAST_STATE_AUTO : Bool;
+         lb_EVENT_OFF : Bool;
+         lB_EVENT_HAND : Bool;
+         lb_EVENT_AUTO : BOOL;
+         BB : BYTE;
+      END_STRUCT;
+      
+      iAction : Int;
+      tmp_SoftSwitch_EVENT : Bool;   // State change done by Software Switch
+   END_VAR
+
+   CONST 
+      cst_MODE_OFF := 0;
+      cst_MODE_HAND := 1;
+      cst_MODE_AUTO := 2;
+      cst_SET_ACTUAL_MODE := 254;
+      cst_DoNothing := 255;
+   END_CONST
+
+
+
+BEGIN
+    
+    mI := BYTE_TO_INT(memByte);  // copy external static memory Byte to local Byte
+    
+    iAction := cst_DoNothing;   // set the Action to "DoNothing"
+    tmp_SoftSwitch_EVENT := false;
+    
+    // Check the FC Input Signals OFF, SET_HAND, SET_AUTO
+    // high priority
+    
+    IF OFF OR (SET_HAND AND SET_AUTO) THEN     // OFF: 1st priority
+        iAction := cst_MODE_OFF;
+        
+    ELSIF SET_HAND THEN                        // HAND: 2nd priority
+        iAction := cst_MODE_HAND;
+        
+    ELSIF SET_AUTO AND FRG_AUTO THEN           // AUTO: 3th priority
+        iAction := cst_MODE_AUTO;
+    
+    ELSIF (NOT FRG_AUTO) AND pb.lb_AUTO THEN   // Switch from ATUO to OFF If FRG_AUTO->FALSE 
+        iAction := cst_MODE_OFF;
+         
+    ELSE
+     // operate the Software Switch
+     // low priority
+     
+        IF (NOT FRG_SOFT) THEN                     // If Software Switch is disabled,
+            iAction := cst_SET_ACTUAL_MODE;       // set Software Switch to actual Mode
+            
+        ELSE                                       // If the Software Switch is enabled
+            
+            IF (NOT pB.lb_HAND) AND S_SOFT = cst_MODE_HAND THEN
+                // Software Switch is in HAND position and HAND MODE isn't set yet
+                iAction := cst_MODE_HAND;
+                tmp_SoftSwitch_EVENT := TRUE; // Software Switch action!
+                
+            ELSIF (NOT pB.lb_AUTO) AND FRG_AUTO AND S_SOFT = cst_MODE_AUTO THEN
+                // Software Switch is in AUTO position and AUTO MODE isn't set yet
+                iAction := cst_MODE_AUTO;
+                tmp_SoftSwitch_EVENT := TRUE; // Software Switch action!
+                
+            ELSIF S_SOFT = cst_MODE_OFF THEN
+                // Software Switch is in OFF position and OFF MODE isn't set yet
+                iAction := cst_MODE_OFF;
+                tmp_SoftSwitch_EVENT := TRUE; // Software Switch action!
+                
+            END_IF;
+            
+        END_IF;
+    END_IF;
+    
+     
+    // Proceed the action to do
+    CASE iAction OF
+            
+        cst_MODE_OFF:                      // SET MODE OFF
+            pB.lb_HAND := FALSE;
+            pB.lb_AUTO := FALSE;
+            S_SOFT := cst_MODE_OFF;
+            
+        cst_MODE_HAND:                     // SET MODE HAND
+            pB.lb_HAND := TRUE;
+            pB.lb_AUTO := FALSE;
+            S_SOFT := cst_MODE_HAND;
+            
+        cst_MODE_AUTO:                     // SET MODE AUTO
+            pB.lb_HAND := FALSE;
+            pB.lb_AUTO := TRUE;
+            S_SOFT := cst_MODE_AUTO;
+            
+        cst_SET_ACTUAL_MODE:               // SET the Software Switch to actual MODE
+            IF pB.lb_HAND THEN
+                S_SOFT := cst_MODE_HAND;
+            ELSIF pB.lb_AUTO THEN
+                S_SOFT := cst_MODE_AUTO;
+            ELSE
+                S_SOFT := cst_MODE_OFF;
+            END_IF;
+            
+            // cst_DoNothing:              // do nothing
+            
+        END_CASE;
+        
+    // SET the FC Output Signals
+    
+        DSP_MODE := S_SOFT;   // Integer Output: Display Mode Output
+        HAND := pB.lb_HAND;   // Bool Output : HAND
+        AUTO := pB.lb_AUTO;   // Bool Output : AUTO
+        
+        // EVENT_HAND := RTrig(lb_HAND) - positive Flanke (lb_HAND)
+        EVT_HAND := (pB.lb_HAND AND NOT pB.lB_EVENT_HAND);
+        pB.lB_EVENT_HAND := pB.lb_HAND ;
+        
+        // EVENT_AUTO := RTrig(lb_AUTO); positive Flanke (lb_AUTO)
+        EVT_AUTO := (pB.lb_AUTO AND NOT pB.lb_EVENT_AUTO);
+        pB.lb_EVENT_AUTO := pB.lb_AUTO;
+        
+        // EVENT_OFF := RTrig(Off) = FTrig(lb_HAND OF lb_AUTO)  - negative Flanke (lb_HAND or lb_AUTO)
+        EVT_OFF := ((NOT (pB.lb_HAND OR pB.lb_AUTO)) AND pB.lb_EVENT_OFF);
+        pB.lb_EVENT_OFF := (pB.lb_HAND OR pB.lb_AUTO);
+        
+        memByte := INT_TO_BYTE(mI);  // Local Byte memory back to extern static memByte
+        
+        // FC.ENO is TRUE if the actual Event is caused by the Software Switch
+        OK := ((EVT_OFF OR EVT_HAND OR EVT_AUTO) AND tmp_SoftSwitch_EVENT);
+        
+END_FUNCTION
+

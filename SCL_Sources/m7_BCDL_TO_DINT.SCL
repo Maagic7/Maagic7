@@ -1,0 +1,314 @@
+
+FUNCTION m7_BCDL_TO_DINT : DINT
+    TITLE ='Converts Long BCD (10 digits and sign) to a DINT'
+
+// ==============================================================================
+// Converts long BCD value (up to 10 digits and sign) to a DINT
+// The BCD must be provided in an ARRAY[1..] OF BYTE in little endian Format
+// BCD[1] contains the lowes digit
+// each BYTE represents 2 digits of the BCD. 5 Bytes = 10 digits
+// plus the possible minus '-' ('-' is B#16#F in BCD code)
+// the '-' can be anywhere in the BCD. If a '-' is detected the
+// conversion will stop at this position. 
+// For BCD{#0F, #F0) what both is '-0', the FUNCTION returns 0.
+// IF an Error occures ,the Function returns -2147483648 / DW#16#80000000
+//    and FC-ENO := FALSE  // the ok-Flag
+// ELSE it returns the DINT value of the BCD {-2147483647 .. 2147483647}  
+//    and FC-ENO := TRUE;  // the ok-Flag
+// ==============================================================================
+//   
+// AUTHOR: S.Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 4/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 06.04.2020   S.Maag      Added Error check for digit 11/12 which
+//                          will exceed 32-Bit DINT range. So far digit 11/12
+//                          have been ignored because they exceed the DINT-range.
+//                          If we want to ignore again, we have to remove
+//                          Err:=TRUE; at Byte6 (digit 11/12) check.
+//                          See comment in the code! 
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    inBCDs : ARRAY[1..6] OF BYTE;  // 1:Lo..6:Hi; Array with the BCD digits (with sign max 12 digits)
+END_VAR
+
+VAR_OUTPUT
+
+END_VAR
+
+VAR_TEMP
+    I      : DINT;   // LOOP COUNTER
+    tmpDI  : DINT;   // Our DINT value
+    diBCD  : DINT;   // Value of a 2-digit BCD value
+    Err    : BOOL;   // Error (BCD-digit not valid; NOT{0..9})
+    negative: BOOL;  // BCD is negative
+    dFact  : DINT;   // Factor for BCD_TO_INT (1_digit, 10_digit, 100_digit ...)
+
+    BCDhi  : WORD;   // Value of hi BCD digit of a BYTE
+    BCDlo  : WORD;   // Value of lo BCD digit of a BYTE
+END_VAR
+
+CONST
+   cstReturnValIfError := -2147483648; // -2147483648 / DW#16#80000000  we use the -2147483648 as Error indication
+END_CONST
+
+BEGIN
+
+    Err := FALSE;
+    negative := FALSE;
+    tmpDI := 0;
+    dFact := 1;  // Faktor für (1er, 10er),(100er, 1000er) ...
+   
+    // **********************************************************************
+    // ***  A BCD can contain a max. of 10 digits and a '-' to fit into   ***
+    // ***  a DINT. (At a 10digit BCD the '-' is in digit 11 of 12)       ***
+    // ***  If you want to ignore numbers in digit 11/12, then remove     ***
+    // ***  this 1st check for valid digit 11/12.                         ***
+    // ***  Removing this 1st check do not affect the processing of the   ***
+    // ***  the 'F', BCD '-'                                              ***
+    // ***  With this check an Error is fired when digit 11/12 contains   ***
+    // ***  digits different from 'F'/'-', without the check              ***
+    // ***  only 10 digits & '-' are processed                            ***
+    // **********************************************************************
+    
+     (*    // remove this 'IF THEN', if you want to ignore numbers in digit 11/12
+
+    // check first digit 11/12: If it contains a number, we will exceed DINT range
+    BCDhi := BYTE_TO_WORD( SHR(IN:=inBCDs[6], N:=4) );   // Value of hi BCD digit
+    BCDlo := BYTE_TO_WORD( inBCDs[6] AND B#16#F);        // Value of lo BCD digit
+    IF BCDlo <> W#16#0 AND BCDlo <> W#16#F THEN
+        Err := TRUE;
+    ELSIF BCDHi <> W#16#0 AND BCDHi <> W#16#F THEN
+        Err := TRUE;
+    END_IF;
+    // **********************************************************************
+
+     *)
+    
+    I := 0;
+    REPEAT 
+        I := I + 1;   // inBCDs[1..6]
+
+        BCDhi := BYTE_TO_WORD( SHR(IN:=inBCDs[I], N:=4) );   // Value of hi BCD digit
+        BCDlo := BYTE_TO_WORD( inBCDs[I] AND B#16#F);        // Value of lo BCD digit
+        
+        // Caution BCD digits must be checked for correct range {0..9}
+        // PLCs may stop if BCD contains invalid digits
+    
+        IF WORD_TO_INT(BCDhi) > 9 THEN          // IF BCD_DIGIT IS NOT VALID
+            IF BCDhi = B#16#F THEN
+                negative := TRUE;
+            ELSE
+                Err := TRUE;                    // invalid BCD digit
+            END_IF;
+            BCDhi := 0;                                   
+        END_IF;
+  
+        IF WORD_TO_INT(BCDlo) > 9 THEN          // IF BCD_DIGIT IS NOT VALID
+            IF BCDlo = B#16#F THEN
+                negative := TRUE;
+                BCDHi := 0;                     // ignore BCDhi if BCDlo is the sign '-'
+            ELSE
+                Err := TRUE;                    // invalid BCD digit
+            END_IF;
+            BCDlo := 0;     
+        END_IF;
+ 
+        // calculate the DINT value of the 2 BCD digits only up to 10 digits max
+        // digit 11..12 is the '-' at 10 digit long BCDs
+        IF I<= 5 THEN
+            diBCD := INT_TO_DINT(WORD_TO_INT(BCDhi)*10) + INT_TO_DINT(WORD_TO_INT(BCDlo));
+  
+            IF I = 5 THEN           // Check overflow if 10digit BCD
+                IF diBCD > 21 THEN  // 21-47-48-36-47 = DW#16#7FFFFFFF; maxDINT
+                    Err := TRUE;
+                ELSIF diBCD = 21 THEN
+                    IF tmpDI > 47483647 THEN ERR := TRUE; END_IF;
+                END_IF;
+            END_IF;         
+
+            tmpDi := tmpDi + diBCD * dFact;  // add the value of the 2 digits in the right position of the DINT   
+            dFact := dFact *100;             // 100 it's ShiftLeftBCD(myBCD,2_digits) as DINT
+            // dFact = {1, 100, 10.000, 1.000.000, 100.000.000} fact = 10.000.000.000 will exceed the DINT range 
+        END_IF;
+    
+    UNTIL negative OR Err OR (I = 6)
+    END_REPEAT;
+   
+    IF negative THEN        // add the negative sign to the DINT
+        tmpDI := -tmpDI;
+    END_IF;                
+
+    IF Err THEN
+       m7_BCDL_TO_DINT := cstReturnValIfError; // -2147483648; DW#16#80000000
+    ELSE
+       m7_BCDL_TO_DINT := tmpDI;
+    END_IF;
+    
+    OK := NOT Err;   //  OK-Bit = TRUE if BCD is converted without an Error! If OK is FALSE, the returned DINT is not valid!
+    
+END_FUNCTION
+
+
+
+(* // original MBus String Function
+FUNCTION BCD_TO_DINT_STR : DINT 
+
+VAR_INPUT
+    BCDs : ARRAY[1..6] OF BYTE;
+END_VAR
+
+VAR_OUTPUT
+    diValue : DINT;
+END_VAR
+
+VAR
+    HexString: ARRAY[0..15] OF STRING[1];
+    BcdStr : STRING[15];
+END_VAR
+
+BEGIN
+
+    HexString[0] := '0';
+    HexString[1] := '1';
+    HexString[2] := '2';
+    HexString[3] := '3';
+    HexString[4] := '4';
+    HexString[5] := '5';
+    HexString[6] := '6';
+    HexString[7] := '7';
+    HexString[8] := '8';
+    HexString[9] := '9';
+    HexString[10] := 'A';
+    HexString[11] := 'B';
+    HexString[12] := 'C';
+    HexString[13] := 'D';
+    HexString[14] := 'E';
+    HexString[15] := 'F';
+
+    BcdStr := '';
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[6]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[6]) MOD 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[5]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[5]) MOD 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[4]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[4]) MOD 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[3]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[3]) MOD 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[2]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[2]) MOD 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[1]) / 16]);
+    BcdStr := CONCAT(IN1 := BcdStr, IN2 := HexString[BYTE_TO_INT(BCDs[1]) MOD 16]);
+    IF (LEN(BcdStr) > 1) AND (LEFT(IN := BcdStr, L := 1) = 'F') THEN
+        BcdStr := DELETE(IN := BcdStr, L := 1, P := 1);
+        WHILE (LEN(BcdStr) > 1) AND (LEFT(IN := BcdStr, L := 1) = '0') DO
+            BcdStr := DELETE(IN := BcdStr, L := 1, P := 1);
+        END_WHILE;
+        BcdStr := CONCAT(IN1 := '-', IN2 := BcdStr);
+    END_IF;
+    BCD_TO_DINT_STR:=STRNG_DI(BcdStr);
+END_FUNCTION
+
+*)
+
+(*
+FUNCTION BCDL_TO_DINT : DINT
+TITLE ='BCDL_TO_DINT'
+//wandelt little-Endian BCD-Bytefolge mit 10 Ziffern + Vorzeichen in DINT
+//Vorzeichen-Byte darf nur 16#F0 (für negativ) oder 16#00 sein
+//Spezialfälle: -2147483648 ist zulässig, -0 ist zulässig und ergibt 0
+AUTHOR : 'PN/DP'
+VERSION : '1.2'
+
+VAR_INPUT
+  BcdChars : ARRAY[1..6] OF BYTE; // |90|78|56|34|12|V0| für -2'147'483'648 .. +2'147'483'647
+END_VAR
+VAR
+  Ziffern : ARRAY[0..9] OF BYTE;
+  wZiffern AT Ziffern : ARRAY[0..4] OF WORD;
+  diValue : DINT;
+  i : DINT;
+  c : BYTE;
+  v : BYTE;
+  z : INT;
+  isneg : BOOL;
+  error : BOOL;
+END_VAR
+
+  // Vorzeichen-Byte darf nur 16#F0 (für negativ) oder 16#00 sein
+  v := BcdChars[6];
+  isneg := v = 16#F0;
+  error := v <> 16#00 AND NOT isneg;
+
+  IF NOT error THEN
+
+    // 5 Bytes ---> 10 Ziffern entpacken
+    FOR i := 0 TO 4 DO
+      c := BcdChars[5-i];
+      wZiffern[i] := (INT_TO_WORD( BYTE_TO_INT(c) * 16 ) OR c) AND 16#0F0F;
+      // Alternative ohne AT-Word-Array (38 Byte länger):
+      // Ziffern[i+i] := INT_TO_BYTE(BYTE_TO_INT(c) / 16);
+      // Ziffern[i+i+1] := c AND 16#F;
+    END_FOR;
+
+    // 9 Ziffern in DINT wandeln
+    diValue := 0;
+    FOR i := 0 TO 8 DO
+      z := BYTE_TO_INT(Ziffern[i]);
+      IF z > 9 THEN  //nur Ziffern 0..9 zulässig
+        error := TRUE;
+        EXIT;  //Konvertierung abbrechen
+      ELSE
+        diValue := diValue * 10 + z;
+      END_IF;
+    END_FOR;
+
+  END_IF;  //NOT error
+  IF NOT error THEN
+
+    // 10. Ziffer Spezial-Behandlung
+    // wenn hier diValue
+    //  > 214748364 ---> error (Wert wird auf jeden Fall zu groß)
+    //  = 214748364 geht nur noch 0..7, und 8 nur wenn negativ
+    //  < 214748364 geht mit allen Ziffern
+    z := BYTE_TO_INT(Ziffern[9]);
+    IF z > 9 OR diValue > 214748364 OR (diValue = 214748364 AND z = 9) THEN
+      error := TRUE;
+
+    ELSIF diValue = 214748364 AND z = 8 THEN
+      IF isneg THEN      //Spezialfall -2147483648 (16#80000000)
+        diValue := -2147483648;
+        isneg := FALSE;  //weiter unten nicht nochmal negieren!
+      ELSE
+        error := TRUE;
+      END_IF;
+
+    ELSE  // < 214748364 OR (= 214748364 AND z = 0..7) geht!
+      diValue := diValue * 10 + z;
+    END_IF;
+
+    IF isneg THEN  //falls negatives Vorzeichen
+      diValue := -diValue;
+    END_IF;
+
+  END_IF;  //NOT error
+
+  // Fehler aufgetreten? --> 0 zurückgeben
+  IF error THEN
+    diValue := 0;          //ggf. weitere Signalisierung? OK-Flag?
+  END_IF;
+
+  BCDL_TO_DINT := diValue; //Rückgabe DINT-Wert oder 0 bei Fehler
+
+  OK := OK AND NOT error;  //OK ist ENO: Wert ist nur gültig wenn OK = TRUE
+
+END_FUNCTION
+*)

@@ -1,0 +1,247 @@
+
+// ******************************************************************************
+//   Typ Converter FUNCTIONS 
+//   This is the SCL Version of the m7t_TypConverter Library
+//
+//   FUNCTION m7_INTxREAL=REAL   : REAL    // FC 174
+//   FUNCTION m7_INTxREAL=INT    : INT     // FC 175
+//   FUNCTION m7_DINTxREAL=REAL  : REAL    // FC 176
+//   FUNCTION m7_DINTxREAL=DINT  : DINT    // FC 177
+//   FUNCTION m7_INT:INT=REAL    : REAL    // FC 178
+//   FUNCTION m7_DINT:DINT=REAL  : REAL    // FC 179
+//   FUNCTION m7_DINT:REAL=DINT  : DINT    // FC 180
+// ******************************************************************************
+
+{SCL_SetOKFlag := 'y'}   // Compiler Option SetOKFlag : ENO = FALSE If OVERFLOW
+
+FUNCTION "m7_INTxREAL=REAL" : REAL
+    TITLE ='INT * REAL = REAL'
+
+// ==============================================================================
+// Multipliziert einen INT mit einem REAL und gibt das Ergebnis als REAL zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2005
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  inINT : INT ;    // the INT
+  inREAL : REAL ;  // the REAL
+END_VAR
+
+    "m7_INTxREAL=REAL" := INT_TO_REAL(inINT) * inREAL;
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_INTxREAL=INT" : INT
+    TITLE ='INT * REAL = INT'
+
+// ==============================================================================
+// Multipliziert einen INT mit einem REAL und gibt das Ergebnis als INT zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2005
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  inINT : INT ;    // the INT
+  inREAL : REAL ;  // the REAL
+END_VAR
+
+    "m7_INTxREAL=INT" := REAL_TO_INT(INT_TO_REAL(inINT) * inREAL);
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_DINTxREAL=REAL" : REAL
+    TITLE ='DINT * REAL = REAL'
+
+// ==============================================================================
+// Multipliziert einen DINT mit einem REAL und gibt das Ergebnis als REAL zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2005
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  inDINT : DINT ;  // the DINT
+  inREAL : REAL ;  // the REAL
+END_VAR
+
+    "m7_DINTxREAL=REAL" := DINT_TO_REAL(inDINT) * inREAL;
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_DINTxREAL=DINT" : DINT
+    TITLE ='DINT * REAL = DINT'
+
+// ==============================================================================
+// Multipliziert einen DINT mit einem REAL und gibt das Ergebnis als DINT zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2005
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  inDINT : DINT ;  // the DINT
+  inREAL : REAL ;  // the REAL
+END_VAR
+
+    "m7_DINTxREAL=DINT" := REAL_TO_DINT(DINT_TO_REAL(inDINT) * inREAL);
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_INT:INT=REAL" : REAL
+    TITLE ='INT / INT = REAL'
+
+// ==============================================================================
+// bildet den Quotienten aus Zaehler/Nenner und gibt diesen als REAL zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 10/2010
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  ZAEHLER : INT ;   
+  NENNER  : INT ;   
+END_VAR
+    "m7_INT:INT=REAL" := INT_TO_REAL(ZAEHLER) / INT_TO_REAL(NENNER);
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_DINT:DINT=REAL" : REAL
+    TITLE ='DINT / DINT = REAL'
+
+// ==============================================================================
+// bildet den Quotienten aus Zaehler/Nenner und gibt diesen als REAL zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 10/2010
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  ZAEHLER : DINT ;   
+  NENNER  : DINT ;   
+END_VAR
+
+    "m7_DINT:DINT=REAL" := DINT_TO_REAL(ZAEHLER) / DINT_TO_REAL(NENNER);
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_DINT:REAL=DINT" : DINT
+    TITLE ='DINT / REAL = DINT'
+
+// ==============================================================================
+// bildet den Quotienten aus Zaehler/Nenner und gibt diesen als DINT zurück
+// 
+// ==============================================================================
+// 
+// AUTHOR: S.Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2005
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  inDINT : DINT ;   
+  inREAL : REAL ;   
+END_VAR
+
+    "m7_DINT:REAL=DINT" := REAL_TO_DINT(DINT_TO_REAL(inDINT)/inREAL);
+
+END_FUNCTION
+
+// ******************************************************************************
+

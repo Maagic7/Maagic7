@@ -1,0 +1,60 @@
+
+FUNCTION "m7_mmss_Overflow" : VOID
+    TITLE ='Check AND correct Overflow OF hh:mm OR mm:ss variables'
+
+// ==============================================================================
+// mmss_Overflow:
+// Check and correct the overflow of variables with time values in the [hh:mm] or 
+// [mm:ss] Format.
+//
+// Example: 
+// Value = 259  ;  2h 59m -> correct, nothing to do
+// Value = 260  ;  2h 60m -> correct to 3h 00m by adding 40 -> Value = 300
+// Value = 265  ;  2h 65m -> correct to 3h 05m by adding 40 -> Value = 305
+//
+// FC_ENO = TRUE if there was an overflow
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2019
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 02.06.2020   S.Maag      added configuration input for correction after
+//                          subtraction or addition
+// 27.03.2020   S.Maag      converted AWL to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  cfg_SubAdd : BOOL;    // correction after subtraction or addition (-40/+40)
+END_VAR                 
+
+VAR_IN_OUT
+  io_d_hhmm_mmss : DINT ;    //Input value in hh:mm or mm:ss 
+END_VAR
+
+VAR_TEMP
+    dCorrVal : DINT;         // correction value (+/- 40)
+END_VAR
+
+BEGIN
+
+    IF cfg_SubAdd THEN
+        dCorrVal := 40;     // correction up (after adding 2 times)
+    ELSE
+        dCorrVal := -40;    // correction down (after subtracting 2 times)
+    END_IF;
+
+    IF io_d_hhmm_mmss MOD 100 >= 60 THEN
+        io_d_hhmm_mmss := io_d_hhmm_mmss + dCorrVal;
+    ELSE
+        OK := FALSE;
+    END_IF;
+    
+END_FUNCTION

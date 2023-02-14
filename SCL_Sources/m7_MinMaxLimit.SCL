@@ -1,0 +1,173 @@
+
+// ******************************************************************************
+//   Min/Max Limit FUNCTIONS
+//
+//   FUNCTION m7_MinMaxLimit_INT  : BOOL     // FC 13
+//   FUNCTION m7_MinMaxLimit_DINT : BOOL     // FC 23
+//   FUNCTION m7_MinMaxLimit_REAL : BOOL     // FC 33
+// 
+// ******************************************************************************
+
+// Compiler Option SetOKFlag : switch OFF OverflowCheck
+{SCL_SetOKFlag := 'n'}   
+
+FUNCTION "m7_MinMaxLimit_INT" : VOID
+    TITLE ='MIN/MAX LIMIT INT; ENO:=LimitIndication'
+
+// ==============================================================================
+// Min- Max- Begrenzung für INT mit Begrenzungsanzeige
+// 
+// FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//          1 = Wert war nicht ok.: Begrenzung aktiv
+// 
+// VERWENDUNG:
+// Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+// Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+// Stoerungsanzeige oder zur direkten Weiterverschaltung.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version TO SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  iMIN : INT ;    //minimal Value
+  iMAX: INT ;    //maximal Value
+END_VAR
+
+VAR_IN_OUT
+  VALUE : INT ;    //Value to limit
+END_VAR
+
+BEGIN
+
+    OK := FALSE;  // ENO
+    
+    IF VALUE < iMIN THEN
+        VALUE := iMIN;
+        OK := TRUE; // ENO
+    ELSIF VALUE > iMAX THEN
+        VALUE := iMAX;
+        OK :=TRUE; // ENO
+    END_IF;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_MinMaxLimit_DINT" : VOID
+    TITLE ='MIN/MAX LIMIT DINT; ENO:=LimitIndication'
+
+// ==============================================================================
+// Min- Max- Begrenzung für DINT mit Begrenzungsanzeige
+// 
+// FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//          1 = Wert war nicht ok.: Begrenzung aktiv
+// 
+// VERWENDUNG:
+// Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+// Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+// Stoerungsanzeige oder zur direkten Weiterverschaltung.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  dMIN : DINT ;    //minimal Value
+  dMAX: DINT ;    //maximal Value
+END_VAR
+
+VAR_IN_OUT
+  VALUE : DINT ;    //Value to limit
+END_VAR
+
+BEGIN
+
+    OK := FALSE;  // ENO
+    
+    IF VALUE < dMIN THEN
+        VALUE := dMIN;
+        OK := TRUE; // ENO
+    ELSIF VALUE > dMAX THEN
+        VALUE := dMAX;
+        OK :=TRUE; // ENO
+    END_IF;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_MinMaxLimit_REAL" : VOID
+    TITLE ='MIN/MAX LIMIT REAL; ENO:=LimitIndication'
+
+// ==============================================================================
+// Min- Max- Begrenzung für REAL mit Begrenzungsanzeige
+// 
+// FC-ENO : 0 = Wert war ok       : Begrenzung nicht aktiv
+//          1 = Wert war nicht ok.: Begrenzung aktiv
+// 
+// VERWENDUNG:
+// Begrenzung eines Wertes auf den Min- Max- Bereich bei gleichzeitiger 
+// Weiterverarbeitung des Begrenzungssignals am FC-ENO-Ausgang z.B. zur Warn- bzw.
+// Stoerungsanzeige oder zur direkten Weiterverschaltung.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version TO SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  rMIN : REAL ;    //minimal Value
+  rMAX: REAL ;    //maximal Value
+END_VAR
+
+VAR_IN_OUT
+  VALUE : REAL ;    //Value to limit
+END_VAR
+
+BEGIN
+
+    OK := FALSE;  // ENO
+    
+    IF VALUE < rMIN THEN
+        VALUE := rMIN;
+        OK := TRUE; // ENO
+    ELSIF VALUE > rMAX THEN
+        VALUE := rMAX;
+        OK :=TRUE; // ENO
+    END_IF;
+
+END_FUNCTION

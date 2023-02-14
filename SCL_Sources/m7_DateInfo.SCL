@@ -1,0 +1,513 @@
+
+// 29.03.2020 geteset! Augenscheinlich funktioniert alles!
+
+FUNCTION m7_DateInfo : VOID
+    TITLE = 'Calculates info of a S7_DATE: Year, Month, Day, DayOfYear, DasInMonth, Week, LeapYear'
+
+// ======================================================================
+// Calcualtes Year, Month, Day from a S7_DATE Format Variable
+// A S7_DATE is an 16 Bit Intger beginning with 0 = "1.1.1990"
+// Range: (1990-1-1) .. (2168-12-31) ; see Siemens Step7 help
+// ======================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2020
+//
+// CHANGELOG:
+// --------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// --------------------------------------------------------------------------------
+// 29.03.2020   S.Maag      Use CPU CLOCK
+//
+// 28.03.2020   S.Maag      Week calculation for EU and Northern America
+//                          Renamed from DateSplit to DateInfo
+//
+// 06.03.2020   S.Maag      some code optimations FOR faster AND shorter code
+// 27.02.2020   S.Maag      tested i.O. Testproject: 'DateTest'
+// --------------------------------------------------------------------------------
+
+    VERSION : '2.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+   in_S7_DATE : DATE;    // S7-Date Format (= Day-No. starting at 01.01.1990 = 0)
+   cfg_UseCpuCLK : BOOL; // 0: use in_S7_Date; 1: use CPU CLOCK for calculation (ignore in_S7_Date) 
+END_VAR
+
+VAR_OUTPUT
+    iYYYY        : INT;  // Year  : [1990..2168]
+    iMM          : INT;  // Month : [1..12]
+    iDD          : INT;  // Day   : [1..31]
+    WeekDayISO   : INT;  // Weekday ISO 8601 [1..7] = [Mo..Su]
+    WeekDayNA    : INT;  // Weekday Nothern Amerika [1..7] = [Su..Sa]
+    iWeek_ISO    : INT;  // Week ISO 8601, [1..53], EU, start on Monday
+    iWeek_NA     : INT;  // Week Northern America, [1..54], start on Sunday
+    iDayOfYear   : INT;  // Day No in the year [1..366]
+    iDaysInMonth : INT;  // No of days in month [28..31]
+    xLeapYear    : BOOL; // Year is leap year / Schaltjahr
+    xIso53WeekYear:  BOOL; // Year contains 53 weeks according to ISO 8601
+END_VAR
+
+VAR_TEMP
+    
+    dDayNo  : DINT;  // Nummer des absoluten Tages im gregorianischen Kalender
+    y4      : DINT;  // Anzahl der 4-Jahreszyklen = Zyklen mit Schaltjahr = 4x365+1 Tage = 1461 Tage
+    rest    : DINT;  // Resttage
+    tmpYear : DINT;  // Nr. des Jahres
+    tmpMonth: DINT;  // Nr. des Monats
+    tmpDay  : DINT;  // Nr. des Tages
+    
+    tmpWeekDayISO : DINT;   // Wochentag ISO 8601 [1..7] = [Mo..So]
+    
+    yOffset      : DINT;  // Offset Jahre aus Resttagen zu 4-Jahres-Zyklus
+    ZeroBaseDayOfYear : DINT;  // 0-basierter Tag des Jahres [0..364]; Schaltjahr [0..365]
+    
+    days : ARRAY [1..12] OF DINT;   // Tage pro Monat
+    
+    IsLeapYear : BOOL;   // Jahr ist Schaltjahr
+    Ready      : BOOL;    // Berechnung abgeschlossen
+    
+    // VAR_Kalenderwoche
+ 
+    IsLeapLastYear        : BOOL;  // letztes Jahr ist Schaltjahr
+    Is_ISO_53_WeekYear    : BOOL;
+    Is_ISO_53_WeekLastYear: BOOL;
+
+    tmpLastYear : DINT;  // Last Year (Year-1)
+    tmpWeekISO  : DINT;  // Woche nach ISO
+    tmpWeekNA   : DINT;  // Woche Nothern America
+    tmpOffset   : DINT;
+    
+    DATE_JAN_01 : DATE;
+    
+    WeekDay_JAN_01          : DINT;
+    WeekDay_DEZ_31_LastYear : DINT;
+
+    dDayForWeek  : DINT;    // Tag des Jahres für Wockenberechnung: OffsetTage die in KW des letzen Jahres fallen sind abgezogen
+
+    // END_VAR_KalenderWoche
+ 
+    // CPU-CLOCK
+    I : DINT;       // FOR I:=1 TO ...
+    iRET : INT;
+    tmpCpuCLK : DATE_AND_TIME;
+    pCpuCLK AT tmpCpuCLK : STRUCT 
+        Year: BYTE;
+        Month: BYTE;
+        Day: BYTE;
+        Hour: BYTE;
+        Minute : BYTE;
+        Second : BYTE;
+        ms_WeekDay : WORD;
+    END_STRUCT;
+    
+END_VAR
+
+  
+CONST
+    cst_DaysTo1989 := 726467;      // Anzahl Tage bis einschl. 31.12.1989
+    // 1989/365 + 1989/4 - 1989/100 + 1989/400 = 725985 + 497 -19 + 4 = 726467
+    // TageDerJahre + SchaltJahre - AusgefalleneSchaltjahre + NichtAusgefalleneSchaltjahre
+    // Gregorianischer Kalender beginnt am 1.1.1; bis einschl. 31.12.1989 sind also 1989 vergangen
+    // da wir aber nicht rückwärts bis v.Chr. rechnen interessiert das wenig!
+
+    // für die Kalenderwoche rechnen wir die Tage 0-basiert, das ist einfacher 
+    // als 1..7! Somit fallen alle +/-1 Korrekturen bei den Berechnungen weg
+    // Ausserdem ist der Datumsbeging bei S7, 1.1.1990, ein Montag. Das macht
+    // die Wochenberechnung nach ISO 8601 recht einfach. WeekDay := myDATE MOD 7
+    cst_Monday    := 0;
+    cst_Tuesday   := 1;
+    cst_Wednesday := 2;   
+    cst_Thursday  := 3;
+    cst_Friday    := 4;
+    cst_Staturday := 5;
+    cst_Sunday    := 6;
+
+END_CONST
+
+BEGIN
+
+    // ======================================================================
+    //    Initialisierungen
+    // ======================================================================
+
+(*    // Standard Tage/Monat initialisieren (kein Schaltjahr)
+    days[1] := 31;      // Januar
+    days[2] := 28;      // Februar
+    days[3] := 31;      // März
+    days[4] := 30;      // April
+    days[5] := 31;      // Mai
+    days[6] := 30;      // Juni
+    days[7] := 31;      // Juli
+    days[8] := 31;      // August
+    days[9] := 30;      // September
+    days[10] := 31;     // Oktober
+    days[11] := 30;     // November
+    days[12] := 31;     // Dezember
+*)
+
+  // diese Version bringt 16 Byte kürzeren Code (es entfallen die TAK-Befehle)   
+    days[2] := 28;      // Februar  für Schaltjahre wird im Code dann 29 eingetragen
+    days[4] := 30;      // April
+    days[6] := 30;      // Juni
+    days[9] := 30;      // September
+    days[11] := 30;     // November
+    days[1] := 31;      // Januar
+    days[3] := 31;      // März
+    days[5] := 31;      // Mai
+    days[7] := 31;      // Juli
+    days[8] := 31;      // August
+    days[10] := 31;     // Oktober
+    days[12] := 31;     // Dezember
+   
+    Ready := FALSE;     // Berechnung fertig initialisieren
+
+    // ======================================================================
+    //    Vorberechnungen
+    // ======================================================================
+
+    IF cfg_UseCpuCLK THEN   // ********** BEGIN USE CPU CLOCK **********
+
+        // Bei direkter Verwendung von CPU_CLOCK ist der Code wesentich einfacher
+        // und kürzer, da die Jahreszahl und die Monate nicht erst berechnet
+        // werden müssen. Einzig DayOfYear muss aus den einzelnen Monaten
+        // aufsummiert werden. Schaltjahr (IsLeapYear) muss bestimmt werden
+        // und die Anzahl der Tage für Februar in days[2]:=29 eingetragen werden.
+        // Damit sind alle Daten für die weitere Kalenderwochenberechung vorhanden.
+        
+        iRET := "READ_CLK" (CDT := tmpCpuCLK);  // Read System Clock
+        
+        tmpYear :=  BCD_TO_DINT(pCpuCLK.Year) + 2000;
+        IF tmpYear > 2089 THEN            // if Year = 90..99 => 1990..1999
+             tmpYear := tmpYear -100;
+        END_IF; 
+  
+        tmpMonth := BCD_TO_DINT(pCpuCLK.Month);
+        tmpDay   := BCD_TO_DINT(pCpuCLK.Day);
+        
+        // prüfen ob berechnete Jahreszahl ein Schaltjahr
+        IsLeapYear := (tmpYear MOD 4)=0;     // Schaltjahr alle 4 Jahre
+        IF IsLeapYear THEN                  // Korrektur für alle 100 & 400 Jahre Zyklen
+            IF (tmpYear MOD 100) = 0 THEN 
+                IsLeapYear := (tmpYear MOD 400) = 0;
+            END_IF;
+        END_IF;  
+
+        IF IsLeapYear THEN   // das Jahr in dem die Resttage sind ist ein Schaltjahr (YEAR(S7_DATE))
+           days[2] := 29;    // dann hat der Februar 29 Tage! in days-Array eintragen, dort stand bisher 28
+        END_IF;
+    
+        ZeroBaseDayOfYear := tmpDay -1; // Tage das akuellen Monats -1, da 0_basiert
+        I := tmpMonth -1;  // Monat vorher
+        WHILE I > 0 DO     // die Monate absteigend bis Januar aufaddieren
+            ZeroBaseDayOfYear := ZeroBaseDayOfYear + days[I];
+            I:=I-1;
+        END_WHILE;
+    
+    ELSE                // ********** BEGIN USE in_S7_DATE **********
+        
+        dDayNo := DATE_TO_DINT(in_S7_DATE) + cst_DaysTo1989 + 1;   // +1 da in Step7 1.1.1990 = 0 ist, im gregorianischen Kalender 726468
+        
+        y4 := dDayNo/1461;              // Anzahl der Schaltjahrzyklen (4x365 +1)=1461 Tage
+        rest := dDayNo MOD 1461;        // Rest der Tage, die keinen vollen Schaltjahrzyklus mehr ergeben
+        
+        // Schaltjahre sind alle 4 Jahre: 
+        // jedes 100 Jahr   fällt es aus, jedes 400 Jahr   nicht! D.h.
+        // jeden  25 Zyklus fällt es aus, jeden 100 Zyklus nicht! Das berechnen wir mit y4/25 und y4/100
+        rest := rest + y4/25 - y4/100 ; // Resttage um Anzahl ausgefallener Schaltjahre korrigieren
+        
+        yOffset := rest /365;        // Volle Jahre aus den Resttagen des 4JahresZyklus
+        tmpYear := y4*4 + yOffset;   // Akt. Jahreszahl := AnzahlJahreVolleSchaltjahrZyklen + GanzeJahreDerResttage
+        rest := (rest MOD 365);      // verbleibende Resttage, die kein volles Jahr mehr ergeben
+    
+        // prüfen ob berechnete Jahreszahl ein Schaltjahr
+        (*
+        IsLeapYear := (tmpYear MOD 4)=0;     // Schaltjahr alle 4 Jahre
+        IF IsLeapYear THEN                  // Korrektur für alle 100 & 400 Jahre Zyklen
+            IF (tmpYear MOD 100) = 0 THEN 
+                IsLeapYear := (tmpYear MOD 400) = 0;
+            END_IF;
+        END_IF;  
+        *)
+    
+        // Jahr ist nur Schaltjahr, wenn der Offset zum vollen SchaltjahresZyklus 0 oder 4 Jahre ist (bei 1460 RestTagen ist der Offset 4)
+        IsLeapYear := (yOffset = 0) OR (yOffset = 4);
+    
+        // ======================================================================
+        //   Monat/Tag und korrekten Jahresüberlauf aus Resttagen berechnen
+        // ======================================================================
+            
+        IF IsLeapYear THEN  
+        // **********  aktuelles berechnetes volles Jahr ist Schaltjahr     **********
+        // wenn Schaltjahr, dann gibt es 3 Möglichkeiten:
+        // 1. bei Rest = 0 liegen wir am 30.12, da wir mit 365 das Jahr berechnet haben, das Schaltjahr aber 366 Tage hat
+        // 2. bei Rest = 1 liegen wir am 31.12, 
+        // 3. bei Rest > 1 geht es ins FolgeJahr, das aktuelle ist also komplett voll, unser gesuchtes Jahr ist also das Folejahr
+        
+            IF  rest > 1 THEN           // Rest >1 => 366 Tage gehen ins aktuelle Schaltjahr, der Rest ins nächste Jahr
+                rest := rest -1;        // Resttage korrigieren, da Schaltjahr 366 Tage hat, nicht 365
+                ZeroBaseDayOfYear := rest-1;   // 0-basierter Tag des Jahres [0..364/365]
+     
+                tmpYear := tmpYear +1;  // Jahreszahl auf Folgejahr 
+                IsLeapYear := FALSE;    // (kein Schaltjahr, da akt. Jahr = Schaltjahr
+            ELSE
+                // Rest =0 oder 1; => es gibt kein Folgejahr Datum ist 30./31.12
+                // Rest =0 ist 365 Tag => 30.12; Rest =1 ist 366 Tag => 31.12
+                tmpMonth := 12;      
+                tmpDay := 30 + rest;
+                ready  := TRUE;
+       
+                ZeroBaseDayOfYear := 364 + rest;   // 0-basierter Tag des Jahres [0..364/365]
+            END_IF;
+    
+        ELSE
+        // ********** K E I N   S C H A L T J A H R **********
+    
+            // Wenn kein Schaltjahr, dann gibt es 2 Möglichkeiten
+            // 1. bei Rest = 0 liegen wir am 31.12
+            // 2. bei Rest > 0 sind wir im Folgejahr
+            
+            IF rest = 0 THEN    // Wenn Rest=0, 31.12. des Jahres; oder 30.12 des Jahres wenn es ein Schaltjahr ist!
+                tmpMonth := 12;   // Wenn die Resttage =0, dann ist das aktuelle Jahr voll
+                tmpDay := 31;   // Wenn aktuelles Jahr <> Schalthjahr, dann ssind 365 = 31.12
+                ready  := TRUE;
+                ZeroBaseDayOfYear := 364;   // 0-basierter Tag des Jahres [0..364/365]
+            ELSE
+                // FolgeJahr
+                tmpYear := tmpYear +1;          // erst mal ins nächste Jahr, wir gehen davon aus, es ist kein Schaltjahr
+                ZeroBaseDayOfYear := rest -1 ;  // 0-basierter Tag des Jahres [0..364/365]
+                
+                // nun müssen wir das FolgeJahr nochmals auf Schaltjahr prüfen, da das vorherige Jahr kein Schaltjahr war
+                // Folgejahr kann nur Schaltjahr sein, wenn der Offset zum vollen Schaltjahrzyklus bereits 3 Jahre betrug
+                IsLeapYear := (yOffset = 3);              
+            
+               (*
+                IsLeapYear := (tmpYear MOD 4)=0;     // Schaltjahr alle 4 Jahre
+                IF IsLeapYear THEN                  // Korrektur für alle 100 & 400 Jahre Zyklen
+                    IF (tmpYear MOD 100) = 0 THEN 
+                        IsLeapYear := (tmpYear MOD 400) = 0;
+                    END_IF;
+                END_IF;  
+                *)
+    
+            END_IF;
+        END_IF; 
+
+        IF IsLeapYear THEN   // das Jahr in dem die Resttage sind ist ein Schaltjahr (YEAR(S7_DATE))
+           days[2] := 29;    // dann hat der Februar 29 Tage! in days-Array eintragen, dort stand bisher 28
+        END_IF;
+    
+        // ist die Berechnung noch nicht abgeschlossen, d.h. wir haben noch Resttage im Folgejahr,
+        // dann müssen wir nun Monat und Tag aus den Resttagen bestimmen
+        
+        IF NOT Ready THEN
+             // Resttage vorhanden, dann Monat und Tag des Monats bestimmen    
+             tmpMonth := 0;   // Monat mit 0 intitialisieren
+             WHILE (rest > 0) AND (tmpMonth <=12) DO
+                tmpMonth := tmpMonth + 1;           // nächster Monat
+                rest := rest - days[tmpMonth];    // von den Resttagen die TageAktMonat abziehen
+             END_WHILE;
+            
+             IF rest = 0 THEN
+                tmpDay:=days[tmpMonth];  // Wenn Resttage=0, dann ist es der letzte des aktuellen Monats
+             ELSE
+                tmpDay:= rest + days[tmpMonth]; // Resttage <0, dann müssen Tage des letzten vollen Monats wieder drauf
+            END_IF;
+        END_IF;
+
+    END_IF;     // ********** END USE in_S7_DATE **********
+
+    // ======================================================================
+    //    Kalenderwoche in der EU nach ISO 8601
+    // ======================================================================
+    
+    (*  https://de.wikipedia.org/wiki/Woche
+
+     Im deutschsprachigen Raum, gemäß Normen der ISO, DIN, ÖNORM und SN: jene Woche,
+     die den ersten Donnerstag des Jahres enthält (ISO 8601, früher DIN 1355-1). 
+     Äquivalent hierzu sind, da ISO 8601 die den Montag als ersten Tag der Woche definiert!
+    
+     Die Kalenderwoche ist nach ISO 8601 so definiert:
+    
+      - Kalenderwochen haben 7 Tage, beginnen an einem Montag und werden über das Jahr fortlaufend nummeriert.
+      - Die Kalenderwoche 1 eines Jahres ist diejenige, die den ersten Donnerstag enthält
+        bzw. mindestens 4 Tage umfasst
+     
+      - Ein Jahr hat genau dann 53 Kalenderwochen, wenn es mit einem Donnerstag beginnt oder endet:
+            Ein jahr mit 53 Wochen beginnt und endet an einem Donnerstag
+            Ein Schaltjahr mit 53 Wochen beginnt an einem Mittwoch und endet an einem Donnerstag
+                                 oder es beginnt an einem Donnerstag und endet an einem Freitag)
+    
+      - Der 29., 30. und 31. Dezember können schon zur Kalenderwoche 1 des Folgejahres gehören.
+      - Der 1., 2. und 3. Januar können noch zu der letzten Kalenderwoche des Vorjahres gehören.
+      - Der 4. Januar ist immer in Kalenderwoche 1.
+    *)
+
+    // Formel für 01.Januar aus Oscat Library (YearBeginn)
+    DATE_JAN_01 := DINT_TO_DATE(DWORD_TO_DINT(SHR(IN:=DINT_TO_DWORD(tmpYear * 1461 - 2878169),N:=2))-7305);
+
+    // da DATE=0 = 1.1.1990, können wir für Montag =0, einfach MOD 7 rechnen
+    tmpWeekDayISO  := (DATE_TO_DINT(DATE_JAN_01) + ZeroBaseDayOfYear) MOD 7 +1;  // 1=Mo, ..., 7=So
+    WeekDay_JAN_01 :=  DATE_TO_DINT(DATE_JAN_01) MOD 7;                          // 0=Mo, ..., 6=So
+    
+    // Der 31 Dez. des letzten Jahres ist einen Tag früher, wir müssten also 
+    // WeekDay_JAN_01 - 1 rechnen. Da negative Tage nicht exisitieren und
+    // (X-1) MOD 7 == (X+6) MOD 7, addieren wir 6 satt 1 zu subtrahieren
+    WeekDay_DEZ_31_LastYear := (WeekDay_JAN_01 + 6) MOD 7; // 0=Mo, ..., 6=So
+
+    // ----------------------------------------------------------------------
+    // prüfen ob vorheriges Jahr ein Schaltjahr war
+    // ----------------------------------------------------------------------
+
+    IF IsLeapYear THEN              // aktuelles Jahr ist Schaltjahr
+        IsLeapLastYear := FALSE;    // dann kann letztes Jahr kein Schaltjahr sein
+
+    ELSE                            // sonst letztes Jahr auf Schaltjahr prüfen
+        tmpLastYear := tmpYear -1;  // Jahreszahl letztes Jahr
+        
+        IsLeapLastYear := (tmpLastYear MOD 4)=0;
+        IF IsLeapLastYear THEN          //  Korrektur für alle 100 & 400 Jahre Zyklen
+            IF (tmpLastYear MOD 100) = 0 THEN 
+                IsLeapLastYear := (tmpLastYear MOD 400) = 0;
+            END_IF;
+        END_IF;  
+    END_IF;
+
+    // ----------------------------------------------------------------------
+    //   prüfen ob Jahre mit 53 Wochen beteiligt sind
+    // ----------------------------------------------------------------------
+     
+    // Ein normales Jahr mit 53 KW beginnt und endet immer an einem Donnerstag
+    // ein Schaltjahr mit 53 KW beginnt (Mittwoch | Donnerstag) und endet dann (Donnerstag | Freitag)     
+    
+    Is_ISO_53_WeekYear := FALSE;
+    IF WeekDay_JAN_01 = cst_Thursday THEN
+        Is_ISO_53_WeekYear := TRUE;  // Wenn Jahr Donnerstag beginnt hat es immer 53 KW
+    ELSIF IsLeapYear THEN
+        Is_ISO_53_WeekYear := (WeekDay_JAN_01 = cst_Wednesday); // Schaltjahr hat auch 53 KW wenn es Mittwoch beginnt
+    END_IF;     
+    
+    // Anzahl Kalenderwochen letztes Jahr
+    Is_ISO_53_WeekLastYear := FALSE;
+    IF WeekDay_DEZ_31_LastYear = cst_Thursday THEN
+        Is_ISO_53_WeekLastYear := TRUE;
+    ELSIF IsLeapLastYear THEN
+       Is_ISO_53_WeekLastYear := (WeekDay_DEZ_31_LastYear = cst_Friday);
+    END_IF;
+
+    // Die Kalenderwoche 1 eines Jahres ist diejenige, die den ersten Donnerstag enthält.
+    // D.h. 1.Jan = [Mo..Do], dann keine Tage im alten Jahr,
+    // Wenn 1.Jan = [Fr..So], dann fallen diese Tage ins alte Jahr, das sind max 3 Tage.
+    // Anzahl Tage berechnen, die noch zur KW des letzen Jahres gehören
+     
+    IF WeekDay_JAN_01 > cst_Thursday THEN  
+     // Da der 1. Donnerstag immer in KW 1 liegt fallen 
+     // Jahresbeginne mit (FR/SA/SO) noch in die KW des Vorjahres
+     // wir müssen also rückwärts korrigieren
+         dDayForWeek := ZeroBaseDayOfYear - (WeekDay_JAN_01-cst_Thursday);
+        // fuer 1.Jan : So = -3
+        //              Sa = -2
+        //              Fr = -1
+      
+    ELSE  // keine Tage in KW des letzten Jahres
+        // wir müssen vorwärts korrigieren. D.h. max 3 Tage des Vorjahres fallen in KW 
+        // des aktuellen Jahres
+        // 1.Jan : Mo=0 => kein Tag des Vorjahres in KW1
+        //         Di=1 => 1    Tag des Vorjahres in KW1
+        //         Mi=2 => 2   Tage des Vorhahres in KW1
+        //         Mi=2 => 3   Tage des Vorhahres in KW1
+        // d.h. um diese Differenz müssen wir unser 0-Referenz für die Wochentagsberechnung verschieben
+        dDayForWeek := ZeroBaseDayOfYear + WeekDay_JAN_01;
+    END_IF;
+
+    // befinden wir uns in diesen ersten max. 3 Tagen, die noch zur KW des Vorjahres gehören?
+    IF dDayForWeek < 0 THEN 
+        IF Is_ISO_53_WeekLastYear THEN 
+            tmpWeekISO := 53;  // KW 53 des letzten Jahres
+        ELSE
+            tmpWeekISO := 52;  // KW 52 des letzten Jahres
+        END_IF;
+    ELSE
+        tmpWeekISO := dDayForWeek / 7 + 1;
+        
+        // Bei 52 Wochen Jahren, laufen evtl. Tage in KW 1 des Folgejahres über   
+        IF (tmpWeekISO = 53) AND NOT Is_ISO_53_WeekYear THEN
+            tmpWeekISO := 1; //  KW 1 des Folgejahres
+        END_IF;
+        
+    END_IF;
+
+
+    // ======================================================================
+    //    Kalenderwoche nach jüdisch-christlicher Tradition 
+    //    Nordamerika, Australien
+    // ======================================================================
+    (*
+      In weiten Teilen der Welt (beispielsweise Nordamerika, Australien) hat sich die
+      jüdisch-christliche Tradition erhalten, den Sonntag als ersten Tag der Woche zu rechnen.
+      In den USA und Ländern, die ebenfalls das dort gültige Schema verwenden, gelten folgende Regeln:
+    
+      Jeden Sonntag beginnt eine neue Kalenderwoche.
+      Am 1. Januar beginnt stets – unabhängig vom Wochentag – die 1. Kalenderwoche.
+    
+      Daraus lassen sich wiederum einige Eigenschaften ableiten:
+     
+      - Die erste und die letzte Kalenderwoche eines Jahres müssen nicht vollständig sein,
+        das heißt, sie können weniger als sieben Tage enthalten
+     
+      - Jedes Jahr, das kein Schaltjahr ist oder dessen 31. Dezember kein Sonntag ist, hat 53 Kalenderwochen
+     
+      - Falls der 31. Dezember eines Schaltjahres ein Sonntag ist, so liegt dieser Sonntag als 
+        einziger Tag in der 54. Kalenderwoche (dieser Fall tritt relativ selten ein; innerhalb
+        eines Jahrhunderts alle sieben Schaltjahre: zuletzt in den Jahren 1944, 1972 und 2000,
+        die nächsten Male 2028 und 2056
+    *)
+
+    tmpOffset := cst_Sunday - WeekDay_JAN_01; // = 0..6 Tage bis zum 1. Sonntag des Jahres
+    
+    // Tage verschieben, so dass wir mit der KW Berechung am 1. Sonntag
+    // des Jahres starten.
+    dDayForWeek := ZeroBaseDayOfYear - tmpOffset;
+    
+    IF dDayForWeek < 0 THEN 
+        // wir befinden uns in der 1. nicht vollständigen Woche
+        tmpWeekNA := 1;
+    ELSE
+        tmpWeekNA := dDayForWeek / 7 + 2; // +2, da erste vollständige Woche KW2
+        
+        IF tmpOffset = 0 THEN   
+        // Falls aber Jahr am Sonntag begonnen hat (tmpOffset=0) 
+        // dann müssen wir korrigieren, da eine unvollständige 1. Woche
+        // nicht exisitiert hat! Wir diese aber mitberechnet haben (+2)
+            tmpWeekNA := tmpWeekNA - 1;
+        END_IF;
+    END_IF;
+
+    // ======================================================================
+    //   Rückgabewerte
+    // ======================================================================
+
+    iYYYY := DINT_TO_INT(tmpYear);   // YEAR(S7_DATE)
+    iMM := DINT_TO_INT(tmpMonth);    // MONTH(S7_DATE)
+    iDD := DINT_TO_INT(tmpDay);      // DAY(S7_DATE)
+    
+    // WeekDayISO Mo..Su; WeekDayNA Su..Sa (Northern America, Australia)
+    WeekDayISO := DINT_TO_INT(tmpWeekDayISO);            // 1:Mo, 2:Di .. 7:So
+    WeekDayNA := DINT_TO_INT((tmpWeekDayISO) MOD 7 +1);  // 1:So, 2:Mo .. 7:Sa 
+   
+    iWeek_ISO := DINT_TO_INT(tmpWeekISO); // Woche nach ISO zurückgeben
+    iWeek_NA  := DINT_TO_INT(tmpWeekNA);  // Woche Nordamerika zurückgeben
+
+    iDayOfYear := DINT_TO_INT(ZeroBaseDayOfYear + 1);   // DayOfYear [1..366]
+ 
+    // im days-Array ist für Februar der korrekte Wert 28 bzw. 29 Tage für Schaltjahr bereits eingetragen
+    iDaysInMonth := DINT_TO_INT(days[tmpMonth]); // Anzahl Tage im Monat
+
+    xLeapYear := IsLeapYear;              // Jahr ist Schaltjahr
+    xIso53WeekYear := Is_ISO_53_WeekYear; // Jahr hat nach ISO 53 Wochen
+END_FUNCTION
+
+
+ 

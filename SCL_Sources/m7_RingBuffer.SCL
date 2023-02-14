@@ -1,0 +1,96 @@
+// ******************************************************************************
+//   Ring-Buffer FUNCTIONS
+//
+//   FUNCTION m7_RingBuffer_ptr_INC  : VOID      // FC 197
+//   FUNCTION m7_RingBuffer_ptr_INC  : VOID      // FC 198
+//
+// ******************************************************************************
+
+// Compiler Option SetOKFlag : switch OFF OverflowCheck
+{SCL_SetOKFlag := 'n'}   
+
+FUNCTION m7_RingBuffer_ptr_INC : VOID
+    TITLE = 'RingBuffer Pointer Increment'
+
+// ==============================================================================
+// Increments the POINTER OF a 256 size circular Buffer,
+// IF more Elements needed, change the cstBufferSize TO 511 (#1FF), 1023 (#3FF)
+// Attention because OF correct overflow handling only 2^n BufferSizes are allowed
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 27.07/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 27.07.2017   S.Maag      Coverted the old AWL Version m7b_RP_Pointer_ADD to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    iINC : INT;   // Value to Increment
+END_VAR
+
+VAR_IN_OUT
+    iIndex : INT;  // BUFFER[] Index
+END_VAR
+
+CONST
+    // Konstanten
+    cstBufferSize := W#16#FF;  // Buffer: This must be always (2^n)-1 : 255, 511, 1023, 2047 ... 
+END_CONST
+
+BEGIN
+    iIndex := WORD_TO_INT(INT_TO_WORD(iIndex + iINC) AND cstBufferSize);
+    OK:= TRUE; // ENO
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_RingBuffer_ptr_DEC : VOID
+    TITLE = 'RingBuffer Pointer Decrement'
+
+// ==============================================================================
+// Decrements the POINTER OF a 256 size circular Buffer,
+// IF more Elements needed, change the cstBufferSize TO 511 (#1FF), 1023 (#3FF)
+// Attention because OF correct overflow handling only 2^n BufferSizes are allowed
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 27.07/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 27.07.2017   S.Maag      Covertet the old AWL Version m7b_RP_Pointer_ADD to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    iDEC : INT;   // Value to Decrement
+END_VAR
+
+VAR_IN_OUT
+    iIndex : INT;  // BUFFER[] Index
+END_VAR
+
+CONST
+    // Konstanten
+    cstBufferSize := W#16#FF;  // Buffer: This must be always (2^n)-1 : 255, 511, 1023, 2047 ... 
+END_CONST
+
+BEGIN
+    iIndex := WORD_TO_INT(INT_TO_WORD(iIndex - iDEC) AND cstBufferSize);
+    OK:= TRUE; // ENO
+END_FUNCTION

@@ -1,0 +1,655 @@
+
+// ******************************************************************************
+//   Mapping FUNCTIONS for 4x Mapping
+//
+//   FUNCTION m7_MAP_4xBOOL : VOID    // FC 105
+//   FUNCTION m7_MAP_4xINT  : VOID    // FC 115
+//   FUNCTION m7_MAP_4xDINT : VOID    // FC 125
+//   FUNCTION m7_MAP_4xREAL : VOID    // FC 135
+//
+//   FUNCTION m7_MAP_Init_4x : VOID    // FC 520
+//   FUNCTION m7_MAP_Move_4x : VOID    // FC 521
+//
+// ******************************************************************************
+
+FUNCTION m7_MAP_4xBOOL : VOID
+    TITLE ='Maps 4 IN to 4 OUT using a mapping table; BOOL'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  inBit1 : BOOL;
+  inBit2 : BOOL;
+  inBit3 : BOOL;
+  inBit4 : BOOL;  
+  MAP_1  : INT;     // mapping table MAP[1]
+  MAP_2  : INT;     // mapping table MAP[2]
+  MAP_3  : INT;     // mapping table MAP[3]
+  MAP_4  : INT;     // mapping table MAP[4]
+  cfg_InToOut_OutFromIn : BOOL;  // 0: inBit_x => OUT[MAP_x]; 1: OUT_x := inBit[MAP_x]
+END_VAR
+
+VAR_OUTPUT
+    outBit1 : BOOL;
+    outBit2 : BOOL;
+    outBit3 : BOOL;
+    outBit4 : BOOL;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..8] OF BOOL; 
+    memOUT: ARRAY[1..8] OF BOOL;
+ //   ptr_memOUT AT memOUT : BYTE;
+END_VAR
+
+BEGIN  
+  //   ptr_memOUT := B#16#0;  // memOUT[] := 0;
+
+     memOUT[1] := FALSE;
+     memOUT[2] := FALSE;
+     memOUT[3] := FALSE;
+     memOUT[4] := FALSE;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inBIT[MAP_x];
+        memIN[1] := inBit1;
+        memIN[2] := inBit2;
+        memIN[3] := inBit3;
+        memIN[4] := inBit4;
+        
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[1] := memIN[MAP_1]; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[2] := memIN[MAP_2]; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[3] := memIN[MAP_3]; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[4] := memIN[MAP_4]; END_IF;
+
+    ELSE
+    // InToOut
+    // inBIT_x => OUT(MAP_x]
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[MAP_1] := inBit1; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[MAP_2] := inBit2; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[MAP_3] := inBit3; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[MAP_4] := inBit4; END_IF;
+    END_IF;
+
+    outBit1 := memOUT[1];
+    outBit2 := memOUT[2];
+    outBit3 := memOUT[3];
+    outBit4 := memOUT[4];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_4xINT : VOID
+    TITLE ='Maps 4 IN to 4 OUT using a mapping table; INT'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  inINT1 : INT;
+  inINT2 : INT;
+  inINT3 : INT;
+  inINT4 : INT;  
+  inZeroVal: INT;
+  MAP_1  : INT;     // mapping table MAP[1]
+  MAP_2  : INT;     // mapping table MAP[2]
+  MAP_3  : INT;     // mapping table MAP[3]
+  MAP_4  : INT;     // mapping table MAP[4]
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_OUTPUT
+    outINT1 : INT;
+    outINT2 : INT;
+    outINT3 : INT;
+    outINT4 : INT;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..4] OF INT; 
+    memOUT: ARRAY[1..4] OF INT;
+END_VAR
+
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inINT[MAP_x];
+        memIN[1] := inINT1;
+        memIN[2] := inINT2;
+        memIN[3] := inINT3;
+        memIN[4] := inINT4;
+        
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[1] := memIN[MAP_1]; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[2] := memIN[MAP_2]; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[3] := memIN[MAP_3]; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[4] := memIN[MAP_4]; END_IF;
+
+    ELSE
+    // InToOut
+    // inINT_x => OUT(MAP_x]
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[MAP_1] := inINT1; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[MAP_2] := inINT2; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[MAP_3] := inINT3; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[MAP_4] := inINT4; END_IF;
+    END_IF;
+
+    outINT1 := memOUT[1];
+    outINT2 := memOUT[2];
+    outINT3 := memOUT[3];
+    outINT4 := memOUT[4];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_4xDINT : VOID
+    TITLE ='Maps 4 IN to 4 OUT using a mapping table; DINT'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  inDINT1 : DINT;
+  inDINT2 : DINT;
+  inDINT3 : DINT;
+  inDINT4 : DINT;  
+  inZeroVal: DINT;
+  MAP_1  : INT;     // mapping table MAP[1]
+  MAP_2  : INT;     // mapping table MAP[2]
+  MAP_3  : INT;     // mapping table MAP[3]
+  MAP_4  : INT;     // mapping table MAP[4]
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_OUTPUT
+    outDINT1 : DINT;
+    outDINT2 : DINT;
+    outDINT3 : DINT;
+    outDINT4 : DINT;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..4] OF DINT; 
+    memOUT: ARRAY[1..4] OF DINT;
+END_VAR
+  
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inDINT[MAP_x];
+        memIN[1] := inDINT1;
+        memIN[2] := inDINT2;
+        memIN[3] := inDINT3;
+        memIN[4] := inDINT4;
+        
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[1] := memIN[MAP_1]; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[2] := memIN[MAP_2]; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[3] := memIN[MAP_3]; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[4] := memIN[MAP_4]; END_IF;
+
+    ELSE
+    // InToOut
+    // inDINT_x => OUT(MAP_x]
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[MAP_1] := inDINT1; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[MAP_2] := inDINT2; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[MAP_3] := inDINT3; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[MAP_4] := inDINT4; END_IF;
+    END_IF;
+
+    outDINT1 := memOUT[1];
+    outDINT2 := memOUT[2];
+    outDINT3 := memOUT[3];
+    outDINT4 := memOUT[4];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_4xREAL : VOID
+    TITLE ='Maps 4 IN to 4 OUT using a mapping table; REAL'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  inREAL1 : REAL;
+  inREAL2 : REAL;
+  inREAL3 : REAL;
+  inREAL4 : REAL;  
+  inZeroVal: REAL;
+  MAP_1  : INT;     // mapping table MAP[1]
+  MAP_2  : INT;     // mapping table MAP[2]
+  MAP_3  : INT;     // mapping table MAP[3]
+  MAP_4  : INT;     // mapping table MAP[4]
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_OUTPUT
+    outREAL1 : REAL;
+    outREAL2 : REAL;
+    outREAL3 : REAL;
+    outREAL4 : REAL;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..4] OF REAL; 
+    memOUT: ARRAY[1..4] OF REAL;
+END_VAR
+  
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inREAL[MAP_x];
+        memIN[1] := inREAL1;
+        memIN[2] := inREAL2;
+        memIN[3] := inREAL3;
+        memIN[4] := inREAL4;
+        
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[1] := memIN[MAP_1]; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[2] := memIN[MAP_2]; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[3] := memIN[MAP_3]; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[4] := memIN[MAP_4]; END_IF;
+
+    ELSE
+    // InToOut
+    // inREAL_x => OUT(MAP_x]
+        IF MAP_1 >=1 AND MAP_1 <=4 THEN memOUT[MAP_1] := inREAL1; END_IF;
+        IF MAP_2 >=1 AND MAP_2 <=4 THEN memOUT[MAP_2] := inREAL2; END_IF;
+        IF MAP_3 >=1 AND MAP_3 <=4 THEN memOUT[MAP_3] := inREAL3; END_IF;
+        IF MAP_4 >=1 AND MAP_4 <=4 THEN memOUT[MAP_4] := inREAL4; END_IF;
+    END_IF;
+
+    outREAL1 := memOUT[1];
+    outREAL2 := memOUT[2];
+    outREAL3 := memOUT[3];
+    outREAL4 := memOUT[4];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_INIT_4x : VOID
+ TITLE ='Initis a 4-Device Mapping Table with [1,2,3,4]'
+
+// ==============================================================================
+// Initis a 4-Device Mapping Table with the start values
+// MAP[1]:=1; MAP[2]:=2; MAP[3]:=3; MAP[4]:=4;
+
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2021
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+   VERSION : '3.0'
+   AUTHOR  : 'S.Maag'
+   FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 4; 
+END_CONST
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT;
+END_VAR
+
+VAR_TEMP
+    I : INT;
+END_VAR
+
+BEGIN
+
+    FOR I:=1 TO cst_maxDevice DO
+        ioMAP[I] := I;
+    END_FOR;
+    
+END_FUNCTION
+
+// **********************************************************************
+
+
+FUNCTION m7_MAP_Move_4x : VOID
+ TITLE ='Moves an entry of a 4x mapping table to 1st/last position'
+
+// ==============================================================================
+// MAP_Move
+ // Schiebt das ausgewählte Gerät an die erste/letzte Startposition (1/iMaxDevice)
+ // Mapping Tabelle => ioMAP[iDeviceNo]:=1
+ // so funktiniert die Mapping Tabelle
+ // MAP[1] := 4  // MAP[1] ist die Startposition der Pumpe 1, 4 => Pumpe startet als 4te
+ // MAP[2] := 1  // MAP[2] ist die Startposition der Pumpe 2; 1 => Pumpe startet als 1te
+
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 29.09.2022   S.Maag      sorting logic changed, because of wrong sorting
+//                          in some cases.
+// 01.03.2021   S.Maag      used MaxDevice for MoveLast  
+// 13.02.2021   S.Maag      added input parameter iMaxDevice
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.1'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 4; 
+END_CONST
+
+VAR_INPUT
+    // Die Eingänge könnte man theoretisch auch als ARRAY übergen, das scheint auf
+    // den ersten Blick günstiger. Es lassen sich dann aber keine Signalverschaltungen
+    // dafür am Baustein anbringen. Bei Einzelsignalen lassen sich diese direkt
+    // am Bausteineingang zusammenbauen
+    xSignal1 : BOOL;
+    xSignal2 : BOOL;
+    xSignal3 : BOOL;
+    xSignal4 : BOOL;
+    cfgMove_FirstLast : BOOL; // Konfiguration für sortieren an den Anfang (First) oder ans Ende (Last) 
+    iMaxDevice : INT;  // Anzahl Geräte 2..4
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT;
+END_VAR
+
+VAR_TEMP
+    I, J : INT;
+    iDevicePos : INT;
+    iSetPos : INT;
+    tmp_MaxDevice :INT;
+    xSIG : ARRAY[1..cst_maxDevice] OF BOOL;  // Singal ARRAY 
+    xEnable : ARRAY[1..cst_maxDevice] OF BOOL; // Array für Sperrsignal bereits fest einsortierter Devices lo=gesperrt!
+END_VAR
+    
+BEGIN
+
+    tmp_MaxDevice := LIMIT (MN:=2, IN:= iMaxDevice, MX:= cst_maxDevice);
+
+    xSIG[1] := xSignal1;
+    xSIG[2] := xSignal2;
+    xSIG[3] := xSignal3;
+    xSIG[4] := xSignal4;
+ 
+    xEnable[1] := TRUE;
+    xEnable[2] := TRUE;
+    xEnable[3] := TRUE;
+    xEnable[4] := TRUE;
+   
+   IF cfgMove_FirstLast THEN       
+        // ----------------------------------------------------------------------
+        //  An das ENDE schieben (letzte Startposition (iMaxDevice)
+        // ----------------------------------------------------------------------
+        
+        // fuer den ersten Schleifendurchlauf (xSignal1) ist die Zielposition ganz am Ende (z.B. 8)
+        // da das erste Signal die höchste Priorität hat, wird es fest an der Endposition einsortiert
+        // das 2te Signal dann an Position 7. Sonst würde ständig umsortiert, wenn mehrere Signale 
+        // für ans Ende schieben gleichzeitig anliegen. Dabei entsteht in manchen Situationen Chaos,
+        // so dass die Mapping-Tabelle völlig durcheinander ist! (Das war der Fehler bis 29.09.2022)
+        iSetPos := tmp_MaxDevice;             
+
+        // Alle Positionen durchlaufen            
+        FOR J:=1 TO tmp_MaxDevice DO // tmp_MaxDevice
+            iDevicePos := ioMAP[J]; // aktuelle Startposition aktuelles Device
+            
+            IF xSIG[J] THEN
+            // Signal an ENDE schieben ist aktiv!
+                
+                // Startreihenfolge wird aktulles Device fest einsortieren, wenn Signal=TRUE
+                // d.h. für weitere Sortierung durch nachfolgende Devices sperren
+                xEnable[J]:=FALSE;  // Sortierfreitgabe für Device=OFF => Device fest einsortiert
+                
+                // hier alle Geräte, die noch nicht fest einsortiert sind verschieben 
+                // d.h. alle Geräte, die hinter dem aktuellen lagen, um eins nach vorne
+                FOR I:=1 TO tmp_MaxDevice DO
+                    IF xENABLE[I] THEN
+                        IF (ioMAP[I] > 0) AND (ioMAP[I] > iDevicePos) THEN
+                            ioMAP[I] := ioMAP[I] -1;  // Startposition des Gerätes um 1 nach vorne
+                        END_IF;
+                    END_IF;
+                END_FOR; 
+              
+                ioMAP[J] := iSetPos;
+            END_IF;
+            IF xSIG[J] THEN 
+                iSetPos := iSetPos -1;
+            END_IF;
+        END_FOR;
+
+    ELSE
+        // ----------------------------------------------------------------------
+        //  An den Anfang schieben (erste Startposition (1)
+        // ----------------------------------------------------------------------
+
+        iSetPos := 1;
+       
+        FOR J:=1 TO tmp_MaxDevice DO
+            iDevicePos := ioMAP[J];
+
+            IF xSIG[J] THEN 
+            // Signal an ENDE schieben ist aktiv!
+                
+                // Startreihenfolge wird aktulles Device fest einsortieren, wenn Signal=TRUE
+                // d.h. für weitere Sortierung durch nachfolgende Devices sperren
+                xEnable[J]:=FALSE;  // Sortierfreitgabe für Device=OFF => Device fest einsortiert
+
+                // hier alle Geräte, die noch nicht fest einsortiert sind verschieben 
+                // d.h. alle Geräte, die vor dem aktuellen lagen, um eins nach hinten
+                FOR I:=1 TO tmp_MaxDevice DO
+                   IF xENABLE[I] THEN
+                       IF (ioMAP[I] < iDevicePos) AND (ioMAP[I] > 0) THEN
+                            ioMAP[I] := ioMAP[I] +1;  // Startposition des Gerätes um 1 nach hinten
+                        END_IF;
+                    END_IF;
+                END_FOR;
+                
+                ioMAP[J] := iSetPos;
+            END_IF;
+            IF xSIG[J] THEN 
+                iSetPos := iSetPos +1;
+            END_IF;
+       END_FOR;
+
+    END_IF;  
+
+END_FUNCTION
+
+// **********************************************************************

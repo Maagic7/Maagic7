@@ -1,0 +1,71 @@
+FUNCTION "m7_BitsToByte" : BYTE
+    TITLE = 'BitsToByte: verbindet 8 Bits zu einem Byte'
+
+// ==============================================================================
+//  8 Bits => 1 Byte
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 6/2007
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME      DESCRIPTION
+// ------------------------------------------------------------------------------
+// 03.09.2018   S.Maag    Converted AWL TO SCL
+//    
+// 12.08.2013   S.Maag    direkets Byteweises kopieren von den Eingängen
+//                        funktioniert nur, wenn die Quellbits aufeinanderfolgend
+//                        sind. (war bisher immer zufällig so, da KOP und 
+//                        Übergabe per Lx.y, Im AWL funktioniert es nicht, da 
+//                        direkte Merkeradressen übergeben werden)
+//                        Bits müssen deshalb immer einzeln kopiert werden!
+//    
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  Bit0 : BOOL ;    
+  Bit1 : BOOL ;    
+  Bit2 : BOOL ;    
+  Bit3 : BOOL ;    
+  Bit4 : BOOL ;    
+  Bit5 : BOOL ;    
+  Bit6 : BOOL ;    
+  Bit7 : BOOL ;    
+END_VAR
+
+VAR_TEMP
+    // because Step7-Classic do not support BYTE Structurers
+    // and not support direct BitAcces like VAR.%X0,
+    // we have to use a INT with a VIEW as BITs 
+    tmpInt : INT;
+    pInt AT tmpINT : STRUCT
+        Bit0 : BOOL;
+        Bit1 : BOOL;
+        Bit2 : BOOL;
+        Bit3 : BOOL;
+        Bit4 : BOOL;
+        Bit5 : BOOL;
+        Bit6 : BOOL;
+        Bit7 : BOOL;
+        Byte1 : BYTE;
+    END_STRUCT;
+    
+END_VAR;
+    
+    pInt.Bit0 := Bit0;
+    pInt.Bit1 := Bit1;
+    pInt.Bit2 := Bit2;
+    pInt.Bit3 := Bit3;
+    pInt.Bit4 := Bit4;
+    pInt.Bit5 := Bit5;
+    pInt.Bit6 := Bit6;
+    pInt.Bit7 := Bit7;
+
+    m7_BitsToByte := INT_TO_BYTE(tmpINT);
+END_FUNCTION

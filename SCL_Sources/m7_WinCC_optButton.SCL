@@ -1,0 +1,111 @@
+
+FUNCTION m7_WinCC_optBtn_8x :VOID
+    TITLE ='WinCC Control FC for 8x Option Button !!! NOT TESTED'
+
+// ==============================================================================
+//  This function controls an 8x option Button form WinCC
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 08/2013
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 06.03.2021   S.Maag      Coverted to SCL 
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  cfgSingleMulti : BOOL ;    //FALSE: single select; TRUE: multi select
+  cfgMustSelect  : BOOL ;    //If TRUE an option must be selected (if not select no 1)
+END_VAR
+
+VAR_OUTPUT
+  opt1 : BOOL ;    // option Button 1 OFF/ON   
+  opt2 : BOOL ;    // option Button 2 OFF/ON   
+  opt3 : BOOL ;    // option Button 3 OFF/ON
+  opt4 : BOOL ;    // option Button 4 OFF/ON
+  opt5 : BOOL ;    // option Button 5 OFF/ON
+  opt6 : BOOL ;    // option Button 6 OFF/ON
+  opt7 : BOOL ;    // option Button 7 OFF/ON
+  opt8 : BOOL ;    // option Button 8 OFF/ON
+END_VAR
+
+VAR_IN_OUT
+  IO_WinCC_OptBtn : BYTE ;   // The WinCC option Button byte 
+  memByte : BYTE ;           // static byte memeory
+END_VAR
+
+VAR_TEMP
+  // for the rising edges of IO_WinCC_OptBtn
+  tmpRTrig : INT ;   
+  xRTrig AT tmpRTrig : STRUCT
+    x : ARRAY [1..16] OF BOOL;
+  END_STRUCT;
+  
+  // internal value for IO_WinCC_OptBtn
+  tmp_optBTN : INT;
+  xoptBtn AT tmp_optBTN : STRUCT
+    x : ARRAY [1..16] OF BOOL;
+  END_STRUCT;
+    
+  I :INT;
+  
+END_VAR
+
+BEGIN
+
+    tmp_optBTN := 0; // set the internal value for optBTN to 0
+    
+    IF NOT cfgSingleMulti THEN  
+        // ------------------------------------------------------------
+        // SingleSelect (only 1 optBtn ON is allowed)
+        // ------------------------------------------------------------
+
+        tmpRTrig := BYTE_TO_INT((IO_WinCC_OptBtn XOR memByte) AND IO_WinCC_OptBtn); //RTrig+
+        memByte := IO_WinCC_OptBtn;
+        
+        IF tmpRTrig <> 0 THEN   // if there is a risign edge!
+            FOR I:=1 TO 8 DO       // search firt rising edge of IO_WinCC_OptBtn
+                IF xRtrig.x[I] THEN
+                    xoptBtn.x[I] := TRUE;  // set the Bit in tmp_optBTN
+                    IO_WinCC_OptBtn := INT_TO_BYTE(tmp_optBTN);
+                    EXIT;       // EXIT FOR
+                END_IF;
+            END_FOR;
+        ELSE                    // if there is no new risign edge
+             tmp_optBTN := BYTE_TO_INT (IO_WinCC_OptBtn);
+        END_IF;
+
+    ELSE                     
+        // ------------------------------------------------------------
+        // MultiSelect
+        // ------------------------------------------------------------
+       tmp_optBTN := BYTE_TO_INT(IO_WinCC_OptBtn);
+       memByte := 0; // at Multiselect set to 0 otherwise we can't dedect 1st RTrig when switching to SingleSelect
+    END_IF;
+    
+    // check MustSelect an optBTN 
+    IF cfgMustSelect AND tmp_optBTN = 0 THEN
+        IO_WinCC_OptBtn := 1;  // optBTN1 is the default Button
+        tmp_optBTN := 1;
+    END_IF;
+        
+    opt1 := xoptBtn.x[1];
+    opt2 := xoptBtn.x[2];
+    opt3 := xoptBtn.x[3];
+    opt4 := xoptBtn.x[4];
+
+    opt5 := xoptBtn.x[5];
+    opt6 := xoptBtn.x[6];
+    opt7 := xoptBtn.x[7];
+    opt8 := xoptBtn.x[8];
+    
+    OK := TRUE;
+END_FUNCTION
+

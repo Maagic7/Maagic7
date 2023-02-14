@@ -1,0 +1,112 @@
+
+// ******************************************************************************
+//   Toleranz FUNCTIONS 
+//
+//   FUNCTION m7_TOLERANZ_INT  : INT    // FC 17
+//   FUNCTION m7_TOLERANZ_DINT : DINT   // FC 27
+//   FUNCTION m7_TOLERANZ_REAL : REAL   // FC 37
+//
+// ******************************************************************************
+
+FUNCTION "m7_TOLERANZ_INT" : BOOL
+    TITLE ='Wert mit Toleranzbereich OK'
+
+// ==============================================================================
+// Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted AWL to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  IST : INT ;    //Istwert
+  SOLL : INT ;   //Sollwert
+  TOL : INT ;    //Toleranzbereich
+END_VAR
+
+BEGIN
+    OK := ABS(Soll -IST) <= TOL;
+    m7_TOLERANZ_INT := OK;
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_TOLERANZ_DINT" : BOOL
+    TITLE ='Wert mit Toleranzbereich OK'
+
+// ==============================================================================
+// Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted AWL to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  IST : DINT ;    //Istwert
+  SOLL : DINT ;    //Sollwert
+  TOL : DINT ;    //Toleranzbereich
+END_VAR
+
+BEGIN
+    OK := ABS(Soll -IST) <= TOL;
+    m7_TOLERANZ_DINT := OK;
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_TOLERANZ_REAL" : BOOL
+    TITLE ='Wert mit Toleranzbereich OK'
+
+// ==============================================================================
+// Prüft ob der IST-Wert im Toleranzbereich des Sollwerts ist
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted AWL to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  IST : REAL ;    //Istwert
+  SOLL : REAL ;    //Sollwert
+  TOL : REAL ;    //Toleranzbereich
+END_VAR
+
+BEGIN
+    OK := ABS(Soll -IST) <= TOL;
+    m7_TOLERANZ_REAL := OK;
+END_FUNCTION

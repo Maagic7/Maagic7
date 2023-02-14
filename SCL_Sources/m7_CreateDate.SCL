@@ -1,0 +1,82 @@
+FUNCTION "m7_CreateDate" : DATE
+    TITLE = 'Create DATE-Format from Year/Month/Day'
+
+// ==============================================================================
+//
+// Erezugt das Date-Format aus den Angaben Year/Month/Day
+// 
+// Die Berechung macht sich die Integerrundung zu nutze, um die Schalttage korrekt 
+// zu berechnen. Alle Divisionen müssen Integerdivisionen sein (immer abgerundet).
+// Berechnet wird die Anzahl der Tage nach dem Gregorinischen Kalender seit 
+// Christi Geburt.
+// 
+// Bedingung für ein Schaltjahr (mit 29.Feb)
+// - ein Schaltjahr ist alle 4 Jahre (Jahreszahl ist durch 4 teilbar)
+// - das Schaltjahr fällt alle volle 100 Jahre aus
+// - das Schaltjahr fällt alle volle 400 Jahre nicht aus (findet also statt) 
+//
+// function CrateDate(y,m,d)  // Calculates the Daynumber from Date
+// 
+// Die Berechnung erfolgt nach folgender Formel
+// zuerst werden die Monats-Nummern verschoben:
+// 0=März bis 11=Februar (wegen Schalttagberechnung)
+// 
+// m = (m + 9) Mod 12   // verschiebt die Monate 0=März bis 11=Februar
+// 
+// Wenn Monat = Januar oder Februar, dann 1 von Jahren abziehen, dies wird
+// wegen der Verschiebung der Monate nötig. Für die Schaltjahresberechung
+// ist das ebenfalls notwendig, da im Falle eines Schaltjahres der Februar
+// noch nicht vorbei ist und ein evtl. Schalttag (29.Feb.) noch nicht
+// eingefügt sein kann. Die fehlenden Tage werden bei der Berechnung der Montastage
+// mit (m*306 +5)/10 wieder korrekt draufgerechnet. Zum Schluss muss 1 Tag abgezogen
+// werden, da Christi Geburt Tag 0 ist!
+// 
+// mit dem Trick (m*306+5)/10 erreicht man durch die Integerrundung, dass alle Monate mit der
+// korrekten Tageszahl 30 oder 31 berechnet werden (selbst die doppelte 31 von Juli, August wird
+// korrekt abgebildet. Der Februar als einziger Monat mit weniger Tagen steht am Schluss (Nr.11) und
+// ist somit für die 30/31 Tage Berechnung irrelevant, da die Berechnung nur die Tage der
+// vollständig vergangenen Vormonate abbilden muss. Die Tage des akt. Monats werden über +d addiert. 
+// 
+// y = y - m/10   // m/10 =1 für Monate Jan. & Feb. (Monats-Nr. 10 & 11)
+// 
+// return (365*y + y/4 - y/100 + y/400 + (m*306 + 5)/10 + d - 1 )
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 10/2008
+
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 26.02.2020   S.Maag      getestet und Fehler "-dd" behoben, muss "+dd" sein
+// 31.07.2017   S.Maag      Coverted AWL TO SCL version
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  iYear : INT ;    // Year
+  iMonth : INT ;   // Month
+  iDay : INT ;     // Day
+END_VAR
+
+VAR_TEMP
+  yy : DINT ;    
+  mm : DINT ;    
+  dd : DINT ;    
+END_VAR
+
+BEGIN
+    mm := (INT_TO_DINT(iMonth) + 9) MOD 12;  // Jan..Dez/1..12 => März..Feb/0..11
+    yy := INT_TO_DINT(iYear) - mm/10;   // -1, wenn Monat = Jan. oder Feb. Anzahl Tage >306 (SummeTage[März..Dez]=306)
+    dd := INT_TO_DINT(iDay);
+
+    // L#726773 = "Anzahl Tage bis 31.12.1989" + 306 = 726467 + 306; in Step 7 ist 0 = 01.01.1990
+    // Dass hier nochmals eine Korrektur von 306 Tagen drin ist liegt an der Verschiebung der Monate 0..11/März..Feb
+    // Klar ist mir das nicht, da die Korrektur bereits über YY-mm/10 erfolgt sein sollte! Aber es funktioniert korrekt!
+    m7_CreateDate := DINT_TO_DATE(365*yy + yy/4 - yy/100 + yy/400 +(mm*306 +5)/10 + dd -(1+726773));
+END_FUNCTION

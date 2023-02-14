@@ -1,0 +1,97 @@
+
+FUNCTION m7_udtCopyArray : VOID
+    TITLE = 'udtCopyArray'
+
+// ACHTUNG: 
+//   trotz UC Aufruf durch den SCL-Kompiler können keine Daten von/zu TEMP-Variablen erfolgen.
+//   Daten stimmen in diesem Fall nicht!
+//
+// ==============================================================================
+// udtCopyArray:
+//
+//    Kopiert UDT's aus Arrays, die Datenlänge des UDT wird automatisch ermittelt. 
+//    Anpassungen der Datenlänge nach Änderungen an den UDT's entfällt somit.
+//    
+//    Achtung Array bzw. Speichergrenzen werden nicht überprüft.
+//    Gegebenenfalls, Indexangaben vorher auf Korrektheit prüfen bzw. limittieren!
+//    Bei inkorrekten Indexangaben geht CPU in STOP.
+//    
+//    Verwendung: Verwaltung von Datensätzen wie Rezepturen, Betriebsdaten, 
+//    Positionsdaten usw. in der Steuerung. 
+//    
+//    Kopiert wird von/zu: DB, statischen Lokaldaten im Instanz-DB 
+//    (Multinnstanzfähig, ohne zus. Adresskorrektur, da Step7 bei Verwendung von 
+//    Instanzdaten bei UDT's automatisch als Quelle [#84] DB und Nr. mit korrekter 
+//    Adress angibt statt nur DI [#85])
+//    
+//    Nicht kopiert wrid von/zu lokalen Daten (TEMP), da vor- vorherige Lokaldaten 
+//    benötigt werden (S7 aber nur vorherige Lokaldaten unterstützt)
+//    
+//    [IN]
+//    srcUdtArray : Anypointer auf den ersten UDT im Quell-Array
+//    srcIndex    : Index des Quell-UDT im Array, beginnend bei 0
+//    destUdtArray: Anypointer auf den ersten UDT im Ziel-Array
+//    destIndex   : Index des Ziel-UDT im Array, beginnend mit 0
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 10/2007
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 20.03.2017   S.Maag      Converted AWL Version m7b_udtCopyArray to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    srcUdtArray : ANY;  // AnyPointer to first UDT in SourceArray
+    srcIndex : INT;     // Index of Source_UDT in the Array[0..x]
+    destUdtArray : ANY; // AnyPointer to first UDT in DestinationArray
+    destIndex : INT;    // Index of Destination_UDT in the Array[0..x]
+END_VAR
+
+VAR_OUTPUT
+    BLKMOVE_RET : INT;    
+END_VAR
+
+VAR_TEMP
+  
+    anySRC : ANY;
+    anyDEST :ANY;
+   
+    p_anySRC AT anySRC: STRUCT  // Mit dem  AT Befehl wird der gleiche Bereich in einer anderen Form définiert
+       ID  : WORD;  // ID für ANY (1002 hex = es wird mit Bytes gearbeitet)
+       REP :INT;    // Wiederholungsfaktor
+       DBNo : INT;   // DB der im ANY Pointer benutzt wird ANY
+       PTR : DWORD; // Pointer Doppelwort um den Angfang des Datenbereichs und den Datentyp zu definieren (84hex = DB Datentyp)
+    END_STRUCT;
+ 
+     p_anyDEST AT anyDEST: STRUCT  // Mit dem  AT Befehl wird der gleiche Bereich in einer anderen Form définiert
+       ID  : WORD;  // ID für ANY (1002 hex = es wird mit Bytes gearbeitet)
+       REP :INT;    // Wiederholungsfaktor
+       DBNo : INT;   // DB der im ANY Pointer benutzt wird ANY
+       PTR : DWORD; // Pointer Doppelwort um den Angfang des Datenbereichs und den Datentyp zu definieren (84hex = DB Datentyp)
+    END_STRUCT;
+      
+    tmpDataPointer : DWORD;
+    
+END_VAR
+
+BEGIN
+    anySRC := srcUdtArray;
+    anyDEST := destUdtArray;
+    
+    tmpDataPointer := DINT_TO_DWORD(DWORD_TO_DINT(p_anySRC.PTR AND DW#16#FFFFFF) + INT_TO_DINT(p_anySRC.REP) * INT_TO_DINT(srcIndex)* 8);
+    p_anySRC.PTR := (p_anySRC.PTR AND DW#16#FF000000) OR tmpDataPointer;
+ 
+    tmpDataPointer := DINT_TO_DWORD(DWORD_TO_DINT(p_anyDEST.PTR AND DW#16#FFFFFF) + INT_TO_DINT(p_anyDEST.REP) * INT_TO_DINT(destIndex) * 8);
+    p_anyDEST.PTR := (p_anyDEST.PTR AND DW#16#FF000000) OR tmpDataPointer;
+   
+    BLKMOVE_RET := BLKMOV(srcblk:= anySRC, dstblk:= anyDEST); // SFC20
+    OK := TRUE; // ENO
+END_FUNCTION

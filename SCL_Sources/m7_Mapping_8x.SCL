@@ -1,0 +1,798 @@
+
+// ******************************************************************************
+//   Mapping FUNCTIONS for 8x Mapping
+//
+//   FUNCTION m7_MAP_8xBOOL : VOID    // FC 524
+//   FUNCTION m7_MAP_8xINT  : VOID    // FC 525
+//   FUNCTION m7_MAP_8xDINT : VOID    // FC 526
+//   FUNCTION m7_MAP_8xREAL : VOID    // FC 527
+//
+//   FUNCTION m7_MAP_Init_8x : VOID    // FC 522
+//   FUNCTION m7_MAP_Move_8x : VOID    // FC 523
+//
+// ******************************************************************************
+
+FUNCTION m7_MAP_8xBOOL : VOID
+    TITLE ='Maps 8 IN to 8 OUT using a mapping table; BOOL'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_INPUT
+  inBit1 : BOOL;
+  inBit2 : BOOL;
+  inBit3 : BOOL;
+  inBit4 : BOOL; 
+  inBit5 : BOOL; 
+  inBit6 : BOOL; 
+  inBit7 : BOOL; 
+  inBit8 : BOOL; 
+  cfg_InToOut_OutFromIn : BOOL;  // 0: inBit_x => OUT[MAP_x]; 1: OUT_x := inBit[MAP_x]
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_OUTPUT
+    outBit1 : BOOL;
+    outBit2 : BOOL;
+    outBit3 : BOOL;
+    outBit4 : BOOL;
+    outBit5 : BOOL;
+    outBit6 : BOOL;
+    outBit7 : BOOL;
+    outBit8 : BOOL;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..cst_maxDevice] OF BOOL; 
+    memOUT: ARRAY[1..cst_maxDevice] OF BOOL;
+  //  ptr_memOUT AT memOUT : BYTE;
+    MAP : INT;
+    I : INT;
+END_VAR
+
+BEGIN  
+  //  ptr_memOUT := B#16#0;  // memOUT[] := 0;
+ 
+    memIN[1] := inBit1;
+    memIN[2] := inBit2;
+    memIN[3] := inBit3;
+    memIN[4] := inBit4;
+    memIN[5] := inBit5;
+    memIN[6] := inBit6;
+    memIN[7] := inBit7;
+    memIN[8] := inBit8;
+    
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inBIT[MAP_x];
+        
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[I] := memIN[MAP];
+            ELSE
+               memOUT[I] := FALSE;
+            END_IF; 
+        END_FOR;
+        
+ 
+    ELSE
+    // InToOut
+    // inBIT_x => OUT(MAP_x]
+         FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[MAP] := memIN[I];
+            ELSE
+                memOUT[MAP] := FALSE;
+            END_IF;
+         END_FOR;
+        
+    END_IF;
+
+    outBit1 := memOUT[1];
+    outBit2 := memOUT[2];
+    outBit3 := memOUT[3];
+    outBit4 := memOUT[4];
+    outBit5 := memOUT[5];
+    outBit6 := memOUT[6];
+    outBit7 := memOUT[7];
+    outBit8 := memOUT[8];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_8xINT : VOID
+    TITLE ='Maps 8 IN to 8 OUT using a mapping table; INT'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_INPUT
+  inINT1 : INT;
+  inINT2 : INT;
+  inINT3 : INT;
+  inINT4 : INT;  
+  inINT5 : INT;
+  inINT6 : INT;
+  inINT7 : INT;
+  inINT8 : INT;  
+  inZeroVal: INT;
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_OUTPUT
+    outINT1 : INT;
+    outINT2 : INT;
+    outINT3 : INT;
+    outINT4 : INT;
+    outINT5 : INT;
+    outINT6 : INT;
+    outINT7 : INT;
+    outINT8 : INT;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..cst_maxDevice] OF INT; 
+    memOUT: ARRAY[1..cst_maxDevice] OF INT;
+    MAP : INT;
+    I : INT;
+END_VAR
+
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     memOUT[5] := inZeroVal;
+     memOUT[6] := inZeroVal;
+     memOUT[7] := inZeroVal;
+     memOUT[8] := inZeroVal;
+
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inINT[MAP_x];
+        memIN[1] := inINT1;
+        memIN[2] := inINT2;
+        memIN[3] := inINT3;
+        memIN[4] := inINT4;
+        memIN[5] := inINT5;
+        memIN[6] := inINT6;
+        memIN[7] := inINT7;
+        memIN[8] := inINT8;
+     
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[I] := memIN[MAP];
+            ELSE
+               memOUT[I] := inZeroVal;
+            END_IF; 
+        END_FOR;
+
+    ELSE
+    // InToOut
+    // inINT_x => OUT(MAP_x]
+         FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[MAP] := memIN[I];
+            ELSE
+                memOUT[MAP] := inZeroVal;
+            END_IF;
+         END_FOR;
+
+    END_IF;
+
+    outINT1 := memOUT[1];
+    outINT2 := memOUT[2];
+    outINT3 := memOUT[3];
+    outINT4 := memOUT[4];
+    outINT5 := memOUT[5];
+    outINT6 := memOUT[6];
+    outINT7 := memOUT[7];
+    outINT8 := memOUT[8];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_8xDINT : VOID
+    TITLE ='Maps 8 IN to 8 OUT using a mapping table; DINT'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_INPUT
+  inDINT1 : DINT;
+  inDINT2 : DINT;
+  inDINT3 : DINT;
+  inDINT4 : DINT; 
+  inDINT5 : DINT;
+  inDINT6 : DINT;
+  inDINT7 : DINT;
+  inDINT8 : DINT; 
+  inZeroVal: DINT;
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_OUTPUT
+    outDINT1 : DINT;
+    outDINT2 : DINT;
+    outDINT3 : DINT;
+    outDINT4 : DINT;
+    outDINT5 : DINT;
+    outDINT6 : DINT;
+    outDINT7 : DINT;
+    outDINT8 : DINT;
+END_VAR
+  
+VAR_TEMP
+    memIN : ARRAY[1..cst_maxDevice] OF DINT; 
+    memOUT: ARRAY[1..cst_maxDevice] OF DINT;
+    MAP : INT;
+    I : INT;
+END_VAR
+  
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     memOUT[5] := inZeroVal;
+     memOUT[6] := inZeroVal;
+     memOUT[7] := inZeroVal;
+     memOUT[8] := inZeroVal;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inDINT[MAP_x];
+        memIN[1] := inDINT1;
+        memIN[2] := inDINT2;
+        memIN[3] := inDINT3;
+        memIN[4] := inDINT4;
+        memIN[5] := inDINT5;
+        memIN[6] := inDINT6;
+        memIN[7] := inDINT7;
+        memIN[8] := inDINT8;
+
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[I] := memIN[MAP];
+            ELSE
+               memOUT[I] := inZeroVal;
+            END_IF; 
+        END_FOR;
+
+    ELSE
+    // InToOut
+    // inDINT_x => OUT(MAP_x]
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[MAP] := memIN[I];
+            ELSE
+                memOUT[MAP] := inZeroVal;
+            END_IF;
+         END_FOR;
+
+    END_IF;
+
+    outDINT1 := memOUT[1];
+    outDINT2 := memOUT[2];
+    outDINT3 := memOUT[3];
+    outDINT4 := memOUT[4];
+    outDINT5 := memOUT[5];
+    outDINT6 := memOUT[6];
+    outDINT7 := memOUT[7];
+    outDINT8 := memOUT[8];
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_8xREAL : VOID
+    TITLE ='Maps 8 IN to 8 OUT using a mapping table; REAL'
+
+// ==============================================================================
+// This function maps 4 individual Inputs to 4 individual Outputs using a 
+// mapping table MAP_1..MAP_4. There is no check FOR double using an INPUT 
+// or OUTPUT.
+//
+// 2 mapping modes are available: Set it with cfg_InToOut_OutFromIn
+// For MAP_TABLES [1,2,3,4] and [4,3,2,1] the result of both modes
+// is identical
+//
+// Mode InToOut: The input is copyied to the output according to the MAP_TABLE
+//               IN_x => OUT[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_4 := IN_1   ; IN_1 => OUT_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; IN_2 => OUT_2
+// MAP_3 = 1 :  OUT_1 := IN_3   ; IN_3 => OUT_1
+// MAP_4 = 3 :  OUT_3 := IN_4   ; IN_4 => OUT_3
+//
+// Mode OutFromIn : The output reads the corresponding input according to the 
+//                  MAP_TABLE 
+//                  OUT_x := IN[MAP[x]]
+//
+// MAP_1 = 4 :  OUT_1 := IN_4   ; OUT_1 <= IN_4
+// MAP_2 = 2 :  OUT_2 := IN_2   ; OUT_2 <= IN_2
+// MAP_3 = 1 :  OUT_3 := IN_1   ; OUT_3 <= IN_1
+// MAP_4 = 3 :  OUT_4 := IN_3   ; OUT_4 <= IN_3
+//  
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_INPUT
+  inREAL1 : REAL;
+  inREAL2 : REAL;
+  inREAL3 : REAL;
+  inREAL4 : REAL;  
+  inREAL5 : REAL;
+  inREAL6 : REAL;
+  inREAL7 : REAL;
+  inREAL8 : REAL;  
+  inZeroVal: REAL;
+  cfg_InToOut_OutFromIn : BOOL;
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_OUTPUT
+    outREAL1 : REAL;
+    outREAL2 : REAL;
+    outREAL3 : REAL;
+    outREAL4 : REAL;
+    outREAL5 : REAL;
+    outREAL6 : REAL;
+    outREAL7 : REAL;
+    outREAL8 : REAL;
+END_VAR
+    
+VAR_TEMP
+    memIN : ARRAY[1..cst_maxDevice] OF REAL; 
+    memOUT: ARRAY[1..cst_maxDevice] OF REAL;
+    MAP : INT;
+    I : INT;
+END_VAR
+  
+BEGIN
+     memOUT[1] := inZeroVal;
+     memOUT[2] := inZeroVal;
+     memOUT[3] := inZeroVal;
+     memOUT[4] := inZeroVal;
+     memOUT[5] := inZeroVal;
+     memOUT[6] := inZeroVal;
+     memOUT[7] := inZeroVal;
+     memOUT[8] := inZeroVal;
+     
+    IF cfg_InToOut_OutFromIn THEN
+    // OutFomIN
+    // OUT_x := inREAL[MAP_x];
+        memIN[1] := inREAL1;
+        memIN[2] := inREAL2;
+        memIN[3] := inREAL3;
+        memIN[4] := inREAL4;
+        memIN[5] := inREAL5;
+        memIN[6] := inREAL6;
+        memIN[7] := inREAL7;
+        memIN[8] := inREAL8;
+
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[I] := memIN[MAP];
+            ELSE
+               memOUT[I] := inZeroVal;
+            END_IF; 
+        END_FOR;
+        
+    ELSE
+    // InToOut
+    // inREAL_x => OUT(MAP_x]
+        FOR I:=1 TO cst_maxDevice DO
+            MAP := ioMAP[I];
+            IF MAP >=1 AND MAP <=cst_maxDevice THEN
+                memOUT[MAP] := memIN[I];
+            ELSE
+                memOUT[MAP] := inZeroVal;
+            END_IF;
+         END_FOR;
+
+    END_IF;
+
+    outREAL1 := memOUT[1];
+    outREAL2 := memOUT[2];
+    outREAL3 := memOUT[3];
+    outREAL4 := memOUT[4];
+    outREAL5 := memOUT[5];
+    outREAL6 := memOUT[6];
+    outREAL7 := memOUT[7];
+    outREAL8 := memOUT[8];
+
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_INIT_8x : VOID
+ TITLE ='Initis a 8-Device Mapping Table with [1,2,3,4,5,6,7,8]'
+
+// ==============================================================================
+// Initis a 8-Device Mapping Table with the start values
+// MAP[1]:=1; MAP[2]:=2; MAP[3]:=3; MAP[4]:=4; ...
+
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 02/2021
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+   VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_TEMP
+    I : INT;
+END_VAR
+
+BEGIN
+
+    FOR I:=1 TO cst_maxDevice DO
+        ioMAP[I] := I;
+    END_FOR;
+    
+END_FUNCTION
+
+// **********************************************************************
+
+FUNCTION m7_MAP_Move_8x : VOID
+ TITLE ='Moves an entry of a 8x mapping table to 1st/last position'
+
+// ==============================================================================
+// MAP_Move
+ // Schiebt das ausgewählte Gerät an die erste/letzte Startposition (1/iMaxDevice)
+ // Mapping Tabelle => ioMAP[iDeviceNo]:=1
+ // so funktiniert die Mapping Tabelle
+ // MAP[1] := 4  // MAP[1] ist die Startposition der Pumpe 1, 4 => Pumpe startet als 4te
+ // MAP[2] := 1  // MAP[2] ist die Startposition der Pumpe 2; 1 => Pumpe startet als 1te
+
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 07/2012
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 29.09.2022   S.Maag      sorting logic changed, because of wrong sorting
+//                          in some cases.
+// 01.03.2021   S.Maag      used MaxDevice for MoveLast  
+// 13.02.2021   S.Maag      added input parameter iMaxDevice
+// 07.04.2020   S.Maag      Coverted to SCL 
+//                          Now support 2 mapping modes InToOut and OutFromIn
+//                          old version from 2012 was only for OutFromIn
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.1'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+CONST
+   cst_maxDevice := 8; 
+END_CONST
+
+VAR_INPUT
+    // Die Eingänge könnte man theoretisch auch als ARRAY übergen, das scheint auf
+    // den ersten Blick günstiger. Es lassen sich dann aber keine Signalverschaltungen
+    // dafür am Baustein anbringen. Bei Einzelsignalen lassen sich diese direkt
+    // am Bausteineingang zusammenbauen
+    xSignal1 : BOOL;
+    xSignal2 : BOOL;
+    xSignal3 : BOOL;
+    xSignal4 : BOOL;
+    xSignal5 : BOOL;
+    xSignal6 : BOOL;
+    xSignal7 : BOOL;
+    xSignal8 : BOOL;
+   
+    cfgMove_FirstLast : BOOL; // Konfiguration für sortieren an den Anfang (First) oder ans Ende (Last) 
+    iMaxDevice : INT;  // Anzahl Geräte 2..4
+END_VAR
+
+VAR_IN_OUT 
+    ioMAP : ARRAY[1..cst_maxDevice] OF INT; // Mapping Table
+END_VAR
+
+VAR_TEMP
+    I, J : INT;
+    iDevicePos : INT;
+    iSetPos : INT;
+    tmp_MaxDevice :INT;
+    xSIG : ARRAY[1..cst_maxDevice] OF BOOL;  // Signal ARRAY 
+    xEnable : ARRAY[1..cst_maxDevice] OF BOOL; // Array für Sperrsignal bereits fest einsortierter Devices lo=gesperrt!
+END_VAR
+    
+BEGIN
+
+    tmp_MaxDevice := LIMIT (MN:=2, IN:= iMaxDevice, MX:= cst_maxDevice);
+   
+    xSIG[1] := xSignal1;
+    xSIG[2] := xSignal2;
+    xSIG[3] := xSignal3;
+    xSIG[4] := xSignal4;
+    xSIG[5] := xSignal5;
+    xSIG[6] := xSignal6;
+    xSIG[7] := xSignal7;
+    xSIG[8] := xSignal8;
+    
+    xEnable[1] := TRUE;
+    xEnable[2] := TRUE;
+    xEnable[3] := TRUE;
+    xEnable[4] := TRUE;
+    xEnable[5] := TRUE;
+    xEnable[6] := TRUE;
+    xEnable[7] := TRUE;
+    xEnable[8] := TRUE;
+       
+   IF cfgMove_FirstLast THEN       
+        // ----------------------------------------------------------------------
+        //  An das ENDE schieben (letzte Startposition (iMaxDevice)
+        // ----------------------------------------------------------------------
+        
+        // fuer den ersten Schleifendurchlauf (xSignal1) ist die Zielposition ganz am Ende (z.B. 8)
+        // da das erste Signal die höchste Priorität hat, wird es fest an der Endposition einsortiert
+        // das 2te Signal dann an Position 7. Sonst würde ständig umsortiert, wenn mehrere Signale 
+        // für ans Ende schieben gleichzeitig anliegen. Dabei entsteht in manchen Situationen Chaos,
+        // so dass die Mapping-Tabelle völlig durcheinander ist! (Das war der Fehler bis 29.09.2022)
+        iSetPos := tmp_MaxDevice;             
+
+        // Alle Positionen durchlaufen            
+        FOR J:=1 TO tmp_MaxDevice DO // tmp_MaxDevice
+            iDevicePos := ioMAP[J]; // aktuelle Startposition aktuelles Device
+            
+            IF xSIG[J] THEN
+            // Signal an ENDE schieben ist aktiv!
+                
+                // Startreihenfolge wird aktulles Device fest einsortieren, wenn Signal=TRUE
+                // d.h. für weitere Sortierung durch nachfolgende Devices sperren
+                xEnable[J]:=FALSE;  // Sortierfreitgabe für Device=OFF => Device fest einsortiert
+                
+                // hier alle Geräte, die noch nicht fest einsortiert sind verschieben 
+                // d.h. alle Geräte, die hinter dem aktuellen lagen, um eins nach vorne
+                FOR I:=1 TO tmp_MaxDevice DO
+                    IF xENABLE[I] THEN
+                        IF (ioMAP[I] > 0) AND (ioMAP[I] > iDevicePos) THEN
+                            ioMAP[I] := ioMAP[I] -1;  // Startposition des Gerätes um 1 nach vorne
+                        END_IF;
+                    END_IF;
+                END_FOR; 
+              
+                ioMAP[J] := iSetPos;
+            END_IF;
+            IF xSIG[J] THEN 
+                iSetPos := iSetPos -1;
+            END_IF;
+        END_FOR;
+
+    ELSE
+        // ----------------------------------------------------------------------
+        //  An den Anfang schieben (erste Startposition (1)
+        // ----------------------------------------------------------------------
+
+        iSetPos := 1;
+       
+        FOR J:=1 TO tmp_MaxDevice DO
+            iDevicePos := ioMAP[J];
+
+            IF xSIG[J] THEN 
+            // Signal an ENDE schieben ist aktiv!
+                
+                // Startreihenfolge wird aktulles Device fest einsortieren, wenn Signal=TRUE
+                // d.h. für weitere Sortierung durch nachfolgende Devices sperren
+                xEnable[J]:=FALSE;  // Sortierfreitgabe für Device=OFF => Device fest einsortiert
+
+                // hier alle Geräte, die noch nicht fest einsortiert sind verschieben 
+                // d.h. alle Geräte, die vor dem aktuellen lagen, um eins nach hinten
+                FOR I:=1 TO tmp_MaxDevice DO
+                   IF xENABLE[I] THEN
+                       IF (ioMAP[I] < iDevicePos) AND (ioMAP[I] > 0) THEN
+                            ioMAP[I] := ioMAP[I] +1;  // Startposition des Gerätes um 1 nach hinten
+                        END_IF;
+                    END_IF;
+                END_FOR;
+                
+                ioMAP[J] := iSetPos;
+            END_IF;
+            IF xSIG[J] THEN 
+                iSetPos := iSetPos +1;
+            END_IF;
+       END_FOR;
+
+    END_IF;  
+
+END_FUNCTION
+
+// **********************************************************************

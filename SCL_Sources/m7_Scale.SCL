@@ -1,0 +1,204 @@
+// ******************************************************************************
+//   Scaling FUNCTIONS 
+//
+//   FUNCTION m7_Scale_INT   : INT    // FC 14
+//   FUNCTION m7_Scale_DINT  : DINT   // FC 24
+//   FUNCTION m7_Scale_REAL  : REAL   // FC 34
+//
+// ******************************************************************************
+
+// ENO enthält übersteuerungsanzeige, deshalb kann eine Überlaufcheck nicht
+// verwendet werden, da dieser ENO exklusiv beschreiben würde
+{SCL_SetOKFlag := 'n'}   // Compiler Option SetOKFlag; switch of Overflow Check
+
+FUNCTION "m7_Scale_INT" : INT
+    TITLE ='Bereich Skalieren INT'
+    
+// ==============================================================================
+// Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+// Ausgangswertebereich:
+// 
+// FC-ENO: Übersteuerungsanzeige
+// 
+// ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//          und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//          der FC-ENO-Ausgang "1"
+// 
+// z.B. Eingangswertebereich 100 -  300   
+//      Ausgangswertebereich   0 - 1000
+// 
+//                            (MaxOutput - MinOutput)
+// Xout = (Value - MinInput) --------------------------  + MinOutput
+//                             (MaxInput - MinInput) 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2003
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 11.02.2021   S.Maag      must be +iMinOutPut not +iMinInput
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  iMinInput : INT ;    // minmal Input
+  iMaxInput : INT ;    // maximal Input
+  iValue : INT ;       // Value to scale
+  iMinOutput : INT ;   // minmal Output
+  iMaxOutput : INT ;    // maximal Output
+END_VAR
+
+VAR_TEMP
+  Xout : INT ;    
+END_VAR
+
+BEGIN
+
+    Xout := REAL_TO_INT(
+               INT_TO_REAL(iValue     - iMinInput) * 
+               INT_TO_REAL(iMaxOutPut - iMinOutput) / 
+               INT_TO_REAL(iMaxInput  - iMinInput) 
+            )+ iMinOutput;
+
+    OK := (Xout < iMinOutput) OR (Xout > iMaxOutPut);  // ENO = overflow/overload indicator
+
+    m7_Scale_INT := Xout;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_Scale_DINT" : DINT
+    TITLE ='Bereich Skalieren DINT'
+
+// ==============================================================================
+// Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+// Ausgangswertebereich:
+// 
+// FC-ENO: Übersteuerungsanzeige
+// 
+// ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//          und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//          der FC-ENO-Ausgang "1"
+// 
+// z.B. Eingangswertebereich 100 -  300   
+//      Ausgangswertebereich   0 - 1000
+// 
+//                            (MaxOutput - MinOutput)
+// Xout = (Value - MinInput) --------------------------  + MinOutput
+//                             (MaxInput - MinInput) 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2003
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 11.02.2021   S.Maag      must be +dMinOutPut not +dMinInput
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  dMinInput : DINT ;    // minmal Input
+  dMaxInput : DINT ;    // maximal Input
+  dValue : DINT ;       // Value to scale
+  dMinOutput : DINT ;   // minmal Output
+  dMaxOutput : DINT ;    // maximal Output
+END_VAR
+
+VAR_TEMP
+  Xout : DINT ;    
+END_VAR
+
+BEGIN
+
+    Xout := REAL_TO_DINT(
+               DINT_TO_REAL(dValue-dMinInput) * 
+               DINT_TO_REAL(dMaxOutPut - dMinOutput) / 
+               DINT_TO_REAL(dMaxInput - dMinInput) 
+            )+ dMinOutput;
+
+    OK := (Xout < dMinOutput) OR (Xout > dMaxOutPut);  // ENO = oerflow/overload indicator
+
+    m7_Scale_DINT := Xout;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_Scale_REAL" : REAL
+    TITLE ='Bereich Skalieren REAL'
+
+// ==============================================================================
+// Skaliert eienen Wert von einem Eingagswertebereich auf einen 
+// Ausgangswertebereich:
+// 
+// FC-ENO: Übersteuerungsanzeige
+// 
+// ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//          und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//          der FC-ENO-Ausgang "1"
+// 
+// z.B. Eingangswertebereich 100 -  300   
+//      Ausgangswertebereich   0 - 1000
+// 
+//                            (MaxOutput - MinOutput)
+// Xout = (Value - MinInput) --------------------------  + MinOutput
+//                             (MaxInput - MinInput) 
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2003
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 11.02.2021   S.Maag      must be +rMinOutPut not +rMinInput
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  rMinInput : REAL ;    // minmal Input
+  rMaxInput : REAL ;    // maximal Input
+  rValue : REAL ;       // Value to scale
+  rMinOutput : REAL ;   // minmal Output
+  rMaxOutput : REAL ;    // maximal Output
+END_VAR
+
+VAR_TEMP
+  Xout : REAL ;    
+END_VAR
+
+BEGIN
+
+    Xout := (rValue-rMinInput) * 
+            (rMaxOutPut - rMinOutput) / 
+            (rMaxInput - rMinInput) 
+            + rMinOutput;
+
+    OK := (Xout < rMinOutput) OR (Xout > rMaxOutPut);  // ENO = overflow/overload indicator
+
+    m7_Scale_REAL := Xout;
+
+END_FUNCTION

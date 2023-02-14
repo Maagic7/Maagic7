@@ -1,0 +1,166 @@
+
+// TYPE auskommentieren, sonst wird bei jeder Übersetzung Zeitstempel neu generiert,
+// was zu manuellem Aktualisierungszwang führen kann
+
+(*
+TYPE "m7_udtStatisticCNT_DINT"
+  AUTHOR : 'S.Maag'
+  FAMILY : Maagic7
+  VERSION : 0.1
+
+  STRUCT     
+   all : DINT ;    //Counter: overall (Gesamtzähler)
+   hour : DINT ;    //Counter: hour
+   day : DINT ;    //Counter: day
+   week : DINT ;    //Counter: week
+   month : DINT ;    //Counter: month
+   year : DINT ;    //Counter: year
+   user : DINT ;    //Counter: user (Zähler Benutzer z.B. Schichtzähler)
+   DT_USER_RESET : DATE_AND_TIME ;    //Reset time of user counter (Zeit Benutzerzähler gelöscht)
+  END_STRUCT ;    
+END_TYPE
+*)
+
+
+FUNCTION "m7_StatisticCounter_DINT" : VOID
+    TITLE ='Statistic counter hour, day, week, month, year, user'
+// ==============================================================================
+//
+// ==============================================================================
+//
+// BENÖTIGTE SFCs: SFC  1 - READ_CLK
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2013
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME      DESCRIPTION
+// ------------------------------------------------------------------------------
+// 27.03.2020   S.Maag    AWL Version zu SCL, da SCL für diese Funktion 
+//                        effektiver und einfacher ist.
+//                        AWL 2844 BYTE; SCL 1554 BYTE
+// 
+// 04.09.2019   S.Maag    cfg_cnt_mms hinzugefügt, somit kann im hh:mm oder
+//                        mm:ss Format die Zeit gezählt werden. Hierzu wird
+//                        nach dem Zählervorgang eine Überlaufkorrektur der
+//                        Werte vorgenommen, so dass in den letzten 2
+//                        Stellen max ein Wert von 59 auftritt.
+//
+// 14.01.2016   S.Maag    Für Zähler Jahr war SysClockEvent Monat programmiert
+//                        Reset war ebenfalls falsch old.year statt act.year
+// --------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  COUNT : BOOL ;    //count: TRUE: counter=counter + step
+  RESET_USER_COUNTER : BOOL ;    //Reset the user counter; (Benutzer Zähler löschen, z.B. Schichtwechsel)
+  dSTEP : DINT ;    //Counter STEP; (Schrittweite Zähler)
+  SysClkEvents : BYTE ;    //System Clock Events
+  cfg_cnt_mmss : BOOL ;    //if TRUE it's counted in hh:mm or mm:ss Format
+END_VAR
+
+VAR_IN_OUT
+  udt_cntDINT_act : "m7_udtStatisticCNT_DINT";    //actual counter data
+  udt_cntDINT_old : "m7_udtStatisticCNT_DINT";    //old counter data
+END_VAR
+
+VAR_TEMP
+  wSysCLKevt : WORD;
+  SysCLK AT wSysCLKevt : STRUCT
+      hiByte  : BYTE;  
+      evtSEC  : BOOL ;    
+      evtMIN  : BOOL ;    
+      evtHOUR : BOOL ;    
+      evtDAY  : BOOL ;    
+      evtWEEK : BOOL ;    
+      evtMONTH: BOOL ;    
+      evtYEAR : BOOL ;    
+      evtReserve : BOOL ; 
+  END_STRUCT;
+   
+  SYS_CLK : DATE_AND_TIME ;    
+  iRET : INT ;    
+END_VAR
+
+
+BEGIN
+    
+    wSysCLKevt := BYTE_TO_WORD(SysClkEvents);
+
+    IF wSysCLKevt <> 0 THEN  // Anything to do? 0 means no acitve EVENT
+    
+        // RESET hour counter : (rücksetzen Zähler aktuelle Stunde)
+        IF SysClk.evtHOUR THEN 
+           udt_cntDINT_old.hour := udt_cntDINT_act.hour;
+           udt_cntDINT_act.hour := 0;
+        END_IF;
+        
+        // RESET day counter : (rücksetzen Zähler aktueller Tag
+        IF SysClk.evtDAY THEN 
+           udt_cntDINT_old.day := udt_cntDINT_act.day;
+           udt_cntDINT_act.day := 0;
+        END_IF;
+        
+        // RESET week counter : (rücksetzen Zähler aktuelle Woche
+        IF SysClk.evtWEEK THEN 
+           udt_cntDINT_old.week := udt_cntDINT_act.week;
+           udt_cntDINT_act.week := 0;
+        END_IF;
+        
+        // RESET month COUNTER : (rücksetzen Zähler aktuelles Monat
+        IF SysClk.evtMONTH THEN 
+           udt_cntDINT_old.month := udt_cntDINT_act.month;
+           udt_cntDINT_act.month := 0;
+        END_IF;
+        
+        // RESET year COUNTER : (rücksetzen Zähler aktuelles Jahr
+        IF SysClk.evtYEAR THEN 
+           udt_cntDINT_old.year := udt_cntDINT_act.year;
+           udt_cntDINT_act.year := 0;
+        END_IF;
+        
+    END_IF;
+
+    // Reset user COUNTER (z.B. Schichtzähler)
+    IF RESET_USER_COUNTER THEN 
+       udt_cntDINT_old.user := udt_cntDINT_act.user;
+       udt_cntDINT_act.user := 0;
+       
+       udt_cntDINT_old.all := udt_cntDINT_act.all;
+       
+       udt_cntDINT_old.DT_USER_RESET := udt_cntDINT_act.DT_USER_RESET;
+       
+       iRET:=READ_CLK(CDT := SYS_CLK);  // READ SystemClock SFC1    
+       udt_cntDINT_act.DT_USER_RESET := SYS_CLK;
+    END_IF;
+
+    IF COUNT THEN
+        udt_cntDINT_act.all  := udt_cntDINT_act.all  + dSTEP;
+        udt_cntDINT_act.hour := udt_cntDINT_act.hour + dSTEP;
+        udt_cntDINT_act.day  := udt_cntDINT_act.day  + dSTEP;
+        udt_cntDINT_act.week := udt_cntDINT_act.week + dSTEP;
+        udt_cntDINT_act.month:= udt_cntDINT_act.month+ dSTEP;
+        udt_cntDINT_act.year := udt_cntDINT_act.year + dSTEP;
+        udt_cntDINT_act.user := udt_cntDINT_act.user + dSTEP;
+        
+        // Überlaufkorrektur bei [hh:mm] oder [mm:ss] Zählung
+        IF cfg_cnt_mmss THEN
+            IF udt_cntDINT_act.all   MOD 100 >= 60 THEN udt_cntDINT_act.all  := udt_cntDINT_act.all  + 40; END_IF;
+            IF udt_cntDINT_act.hour  MOD 100 >= 60 THEN udt_cntDINT_act.hour := udt_cntDINT_act.hour + 40; END_IF;    
+            IF udt_cntDINT_act.day   MOD 100 >= 60 THEN udt_cntDINT_act.day  := udt_cntDINT_act.day  + 40; END_IF;    
+            IF udt_cntDINT_act.week  MOD 100 >= 60 THEN udt_cntDINT_act.week := udt_cntDINT_act.week + 40; END_IF;     
+            IF udt_cntDINT_act.month MOD 100 >= 60 THEN udt_cntDINT_act.month:= udt_cntDINT_act.month+ 40; END_IF;     
+            IF udt_cntDINT_act.year  MOD 100 >= 60 THEN udt_cntDINT_act.year := udt_cntDINT_act.year + 40; END_IF;     
+            IF udt_cntDINT_act.user  MOD 100 >= 60 THEN udt_cntDINT_act.user := udt_cntDINT_act.user + 40; END_IF;     
+        END_IF;
+        
+    END_IF;
+
+   // OK := TRUE;   // wird von SCL-Compiler bereits durchgeschleift
+
+END_FUNCTION

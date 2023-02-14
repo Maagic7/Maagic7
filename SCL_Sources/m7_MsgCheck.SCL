@@ -1,0 +1,249 @@
+
+FUNCTION_BLOCK m7_MsgCheck
+    TITLE=    'MsgCheck' 
+
+// ==============================================================================
+// Sammelmeldung aus Meldungs-DB generieren!
+// Mit Maskierungs-DB dringende Meldungen selektiern    
+//    
+// KONSTANTEN: mit der Konstante cst_maxERR wird festgelegt, wieviel 
+//             Speicherplatz für die Flankenauswertung der Meldungen
+//             reserviert wird. Voreingestellt ist 0..1023 Bits
+// ==============================================================================
+//                
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 28.09.2018
+//    
+// LICENSE: This is free Software without any warrenty
+//       
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 09.10.2018  S.Maag      Error in memARY size calculation solved /32 is correct
+//                         not /4, beause a DWORD is 32 Bit long  
+//                          
+// 14.01.2020  S.Maag      added Output NoNewMSG and NoNewAlarm to get the
+//                         absolut numbers (ID) of the messages [1..1024]   
+//                         The MsgNo is needed for sending Service Emails                       
+// ------------------------------------------------------------------------------
+
+    VERSION:  '2.0'
+    AUTHOR:   'S.Maag'   
+    FAMILY:   'Maagic7'     
+
+VAR_INPUT
+    DB_ERR : BLOCK_DB;      // DataBlock with Error Messages
+    DB_MASK : BLOCK_DB;     // DataBlock BitMask to selsct ALARMs
+END_VAR
+
+VAR_OUTPUT
+    MSG         : BOOL;     // Message
+    ALARM       : BOOL;     // AlarmMessage MSG which is masked by DB_MASK
+    evtNewMSG   : BOOL;     // Event NewMsg; an impuls of 1 cycle if a NewMSG occures 
+    evtNewALARM : BOOL;     // Event NewAlarm; an Impuls of 1 cycle if a NewALARM occures
+    NoNewMSG    : DINT;     // Number of the new Message 1..cst_maxERR+1 (=1024); 0= No MSG
+    NoNewAlarm  : DINT;     // Number of the new Alarm   1..cst_maxERR+1 (=1024); 0= No Alarm
+    NoOfMSGs    : DINT;     // Number of proceeded Messages
+    FB_ERR_NO   : DINT;     // 0 if No Error (not implemented yet; always 0)
+END_VAR
+
+VAR_TEMP
+    tmpMSG      : BOOL;     // BOOL to store Output MSG
+    tmpALARM    : BOOL;     // BOOL to store Output ALARM
+    tmpNewMSG   : BOOL;     // BOOL to store Output NewMSG
+    tmpNewALARM : BOOL;     // BOOL to store Output NewALARM
+    tmpNoOfMSGs : DINT;     // DINT to store OutPut NoOfMSGs
+    
+    L_DB_ERR    : DINT;     // Length in bytes of BLOCK_DB1
+    L_DB_MASK   : DINT;     // Length in bytesof BLOCK_DB2
+    wBYTEs      : WORD;     // Byte length of DB, returned by SFC_24 TEST_DB
+    wDBNo       : WORD;     // DBNo of BLOCK-DB, Input value for SFC_24 TEST_DB
+    RET         : INT;      // Return value for SFCs
+    xWriteProtect : BOOL;
+
+    I           : DINT;     // Index for 1st LOOP
+    J           : DINT;     // Index for 2nd LOOP
+    diMaxLoop   : DINT;     // for LoopCouter
+    diNoOfBytes : DINT;     // for Length of shortest DataBlock in BYTES = "Number of bytes to proceed"
+    diNoOfRestBytes : DINT; // No of Restbytes which doesn't fit to DWORD (0..3 Bytes) 
+    diByteAddress   : DINT; // ByteAddress to read from DBs
+    CheckRestBytes  : BOOL; // Singal to check RestBytes in the LOOP
+   
+    dwOldMSG    : DWORD;    // DWORD to store dwMSG as old for detecting RisingEdges
+    dwOldResult : DWORD;    // DWORD to store dwRESULT as old for detecting RisingEdges
+    dwRESULT    : DWORD;    // DWORD to store result of dwMSG AND dwMASK
+    dwRTrig     : DWORD;    // DWORD to store riging edges of new MSG and ALARM (to detect absolut MsgNo)
+    dwTmp       : DWORD;    // DWORD for temporary results
+    dBitPos     : DINT;    // DWORD Bitposition of Rising edges (to detect absolut MsgNo)
+
+    dwMSG : DWORD;             // DWORD to store MSG-Bits from DB_ERR
+    p_dwMSG AT dwMSG : STRUCT  // 4 Byte view of dwMSG (like a C++ UNION)
+        Byte0 : BYTE;
+        Byte1 : BYTE;
+        Byte2 : BYTE;
+        Byte3 : BYTE;
+    END_STRUCT;
+
+    dwMASK : DWORD;              // DWORD to store MASK-Bits from DB_MASK
+    p_dwMASK AT dwMASK : STRUCT  // 4 Byte view of dwMSG (like a C++ UNION)
+        Byte0 : BYTE;
+        Byte1 : BYTE;
+        Byte2 : BYTE;
+        Byte3 : BYTE;
+    END_STRUCT;
+
+END_VAR
+
+CONST
+    cst_maxERR := 1023;  // ERROR numbers from 0..cst_MaxErr; 0..1023 (to reserve memory for OldMessages)
+END_CONST 
+
+VAR
+    // statische Variablen
+    memARY : ARRAY [0..(cst_maxERR/32)] OF DWORD;  // Reserve memory sot store old Messages; needed to detect new message
+    
+END_VAR
+
+    // Call SFC_24 "TEST_DB" to get DB-Length
+    wDBNo := BLOCK_DB_TO_WORD(DB_ERR);
+    RET   := TEST_DB(DB_NUMBER :=wDBNo, DB_LENGTH := wBYTEs, WRITE_PROT :=  xWriteProtect);  // blk_DB1
+    L_DB_ERR := WORD_TO_DINT(wBYTEs);  // total DB lLength in Bytes
+    
+    wDBNo := BLOCK_DB_TO_WORD(DB_MASK);
+    RET   := TEST_DB(DB_NUMBER :=wDBNo, DB_LENGTH := wBYTEs, WRITE_PROT :=  xWriteProtect);  // blk_DB2
+    L_DB_MASK := WORD_TO_DINT(wBYTEs); // total DB lLength in Bytes
+    
+    tmpMSG := FALSE;
+    tmpALARM := FALSE;
+    tmpNewMSG := FALSE;
+    tmpNewALARM := FALSE;
+    
+    diNoOfBytes := MIN(IN1:=L_DB_ERR, IN2:= L_DB_MASK, IN3:= (cst_maxERR +1) );     // Length in Byte of shortest DataBlock (DB_ERR, DB_MASK, memARY[]:
+    
+    tmpNoOfMSGs := 0;
+    diByteAddress := 0;
+    diNoOfRestBytes := diNoOfBytes MOD 4;      // Number of RestBytes which doesn't fit do DWORD-Address (0..3 Bytes)
+    diMaxLoop :=  (diNoOfBytes / 4);        // End of Loop to access Messages as DWORD
+    
+    CheckRestBytes := (diNoOfRestBytes <> 0); 
+    
+    IF NOT CheckRestBytes THEN
+        diMaxLoop := diMaxLoop -1;   // 1 Loop less if no Restbytes (because we start counting at 0)
+    END_IF;    
+        
+    FOR I := 0 TO diMaxLoop DO
+      
+        diByteAddress := I*4;
+        dwOldMSG := memARY[I];                  // Load the old MSG to detect new Messages
+     //   dwMSG := DB_ERR.DD[diByteAddress];      // Load MSG-Bits from DB
+     //   dwMASK := DB_MASK.DD[diByteAddress];    // Load MASK-Bits from DB
+ 
+ // (*
+        IF CheckRestBytes THEN   // CheckForRestBytes
+            IF I = diMaxLoop THEN  // Last LOOP => here we have to check the Restbytes
+                dwMSG := 0;
+                dwMASK:= 0;
+                
+                // ACHTUNG evtl. stimmt die ByteReihenfolge nicht,
+                // dann in der Defintion von p_dwMSG / p_dwMASK, die Definitionsreihenfolge auf Byte3..0 ändern
+   
+                tmpNoOfMSGs := tmpNoOfMSGs +8;
+                p_dwMSG.BYTE0 := DB_ERR.DB[diByteAddress];      // Load MSG-Bits from DB
+                p_dwMASK.BYTE0 := DB_MASK.DB[diByteAddress];    // Load MASK-Bits from DB
+                 
+                IF diNoOfRestBytes >1 THEN
+                    tmpNoOfMSGs := tmpNoOfMSGs +8;
+                    p_dwMSG.BYTE1 := DB_ERR.DB[diByteAddress+1];      // Load MSG-Bits from DB
+                    p_dwMASK.BYTE1 := DB_MASK.DB[diByteAddress+1];    // Load MASK-Bits from DB
+                END_IF;
+                
+                IF diNoOfRestBytes >2 THEN
+                    tmpNoOfMSGs := tmpNoOfMSGs +8;
+                    p_dwMSG.BYTE2 := DB_ERR.DB[diByteAddress+2];      // Load MSG-Bits from DB
+                    p_dwMASK.BYTE2 := DB_MASK.DB[diByteAddress+2];    // Load MASK-Bits from DB
+                END_IF;
+             ELSE
+                tmpNoOfMSGs := tmpNoOfMSGs +32;
+                dwMSG := DB_ERR.DD[diByteAddress];      // Load MSG-Bits from DB
+                dwMASK := DB_MASK.DD[diByteAddress];    // Load MASK-Bits from DB
+             END_IF;
+        ELSE
+            tmpNoOfMSGs := tmpNoOfMSGs +32;
+            dwMSG := DB_ERR.DD[diByteAddress];      // Load MSG-Bits from DB
+            dwMASK := DB_MASK.DD[diByteAddress];    // Load MASK-Bits from DB
+        END_IF; 
+// *)
+        IF dwMSG <> 0 THEN                  // If dwMSG <> 0 THEN "an MSG is active"
+            tmpMSG := TRUE;
+        END_IF;
+       
+        dwRESULT := dwMSG AND dwMASK;       // Result DW for ALARMs: If MSG and MASK is TRUE
+        IF dwRESULT <> 0 THEN
+            tmpALARM := TRUE;               // masked BIT is TRUE; so we have an ALARM
+        END_IF;
+       
+        dwOldResult := dwOldMSG AND dwMASK;
+        
+        // ======================================================================
+        //  Check for NewAlarm and calculate NoOfNewAlarm
+        // ======================================================================
+        
+        dwRTrig := ((dwResult XOR dwOldResult) AND dwResult); // find rising edges of dwResult
+        IF dwRTrig <>0 THEN  // If RisingEdges of dwRESULT<>0 => NewAlarmMessage
+            tmpNewALARM:=TRUE;
+            
+            // ------------------------------------------------------------
+            // find Position of first high Bit in the rising edges of ALARM
+            // ------------------------------------------------------------
+            dwTmp:=dwRTrig;
+            J:=0;
+            WHILE dwTmp <> 0 DO  // ShiftLeft Bit by Bit until dwTemp=0 => Position of 1st high Bit
+                dwTmp := SHL(IN:=dwTmp, N:=1);
+                J:=J+1;                
+            END_WHILE;
+
+            // because we do ShiftLeft, we must sub our Loops from 32 to get positiong of 1st high Bit
+            dBitPos := 32-J;   // BitPos [1..32]              
+            // Calculate the absolut No of the NewALARM [1..cst_maxERR+1] = [1..1024]
+            NoNewAlarm := I * 32 + dBitPos;
+            
+        END_IF;
+ 
+        // ======================================================================
+        //  Check for NewMSG and calculate NoOfNewMSG
+        // ======================================================================
+        
+        dwRTrig := ((dwMSG XOR dwOldMSG) AND dwMSG);
+        IF dwRTrig <>0 THEN  // If RisingEdges of dwMSG<>0 => NewMessage
+            tmpNewMSG:=TRUE;
+            
+            // ------------------------------------------------------------
+            // find Position of first high Bit in the rising edges of MSG
+            // ------------------------------------------------------------
+            dwTmp:=dwRTrig;
+            J:=0;
+            WHILE dwTmp <> 0 DO  // ShiftLeft Bit by Bit until dwTemp=0 => Position of 1st high Bit
+                dwTmp := SHL(IN:=dwTmp, N:=1);
+                J:=J+1;                
+            END_WHILE;
+
+            // because we do ShiftLeft, we must sub our Loops from 32 to get positiong of 1st high Bit
+            dBitPos := 32-J;   // BitPos [1..32]            
+            // Calculate the absolut No of the NewMSG [1..cst_maxERR+1] = [1..1024]
+            NoNewMSG := I * 32 + dBitPos;
+
+        END_IF;
+        
+        memARY[I]:= dwMSG;   // save MSG as OldMSG
+    END_FOR;
+    
+    MSG := tmpMSG;
+    ALARM := tmpALARM;
+    evtNewMSG := tmpNewMSG;
+    evtNewALARM := tmpNewALARM;
+    NoOfMSGs := tmpNoOfMSGs;
+    
+    FB_ERR_NO:=0;   // Reserve für Fehlerauswertung FB (z.B. DB-Längen MSG und MASK passen nicht zusammen
+    OK := TRUE;     // FB.ENO := TRUE
+END_FUNCTION_BLOCK

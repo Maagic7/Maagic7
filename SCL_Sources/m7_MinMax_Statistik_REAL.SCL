@@ -1,0 +1,255 @@
+
+TYPE "m7_udtMinMaxStat_REAL"   // UDT291
+    AUTHOR :'S.Maag'
+    FAMILY : Maagic7
+    VERSION: 2.0
+
+  STRUCT     
+   all : REAL;      //Schleppzeiger: overall (Gesamtzähler)
+   hour : REAL;     //Schleppzeiger: hour
+   day : REAL;      //Schleppzeiger: day
+   week : REAL;     //Schleppzeiger: week
+   month : REAL;    //Schleppzeiger: month
+   year : REAL;     //Schleppzeiger: year
+   user : REAL;     //Schleppzeiger: user (Zähler Benutzer z.B. Schichtzähler)
+   DT_USER_RESET : DATE_AND_TIME;   //Reset time of user value (Zeit Benutzerwert gelöscht)
+   DT_all : DATE_AND_TIME;      //time all min/max event occured
+   DT_hour : DATE_AND_TIME;     //time hour min/max event occured
+   DT_day : DATE_AND_TIME;      //time day min/max event occured
+   DT_week : DATE_AND_TIME;     //time weed min/max event occured
+   DT_month : DATE_AND_TIME;    //time month min/max event occured
+   DT_year : DATE_AND_TIME;     //time year min/max event occured
+   DT_user : DATE_AND_TIME;     //time user min/max event occured
+  END_STRUCT;    
+END_TYPE
+
+
+FUNCTION "m7_MinMaxStatistik_REAL" : VOID
+    TITLE ='MinMax Statistik REAL (hour/day/week/month/year/user/all)'
+
+// ==============================================================================
+// Statistischer Schleppzeiger MIN/MAX für REAL-Werte
+// Es wird Wert für Stunde/Tag/Woche/Monat/Jahr/User/Gesamt
+// mit den zugehörigen Zeitstempeln erfasst. 
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2018
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//  
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '2.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+
+VAR_INPUT
+  ENABLE : BOOL;            // Enable logging! (connect sensor error here to stop logging)
+  rVALUE : REAL ;           // Sensor value (Temperature, pressure ...)
+  RESET_USER_VALUE : BOOL ; // Reset the user value; (Benutzer Wert löschen, z.B. Schichtwechsel)
+  cfg_MinMax : BOOL ;       // configuration 0:Min; 1:=Max
+  SysClkEvents : BYTE ;    // System Clock Events
+END_VAR
+
+VAR_IN_OUT
+  udt_act : "m7_udtMinMaxStat_REAL";    //actual counter data
+  udt_old : "m7_udtMinMaxStat_REAL";    //old counter data
+END_VAR
+
+VAR_TEMP
+    // Step7 doesn't allow VIEWs on BYTE VARs, so because of this we use a WORD
+    wSysCLKevt : WORD;   // temporary Byte for SysClockEvents
+    SysCLK AT wSysCLKevt : STRUCT // View to access tmp_SysClockEvents.Bits (a VIEW is like  
+        hiByte : BYTE; // Byte
+        evtSEC : BOOL ;
+        evtMIN : BOOL ;    
+        evtHOUR : BOOL ;    
+        evtDAY : BOOL ;    
+        evtWEEK : BOOL ;    
+        evtMONTH : BOOL ;    
+        evtYEAR : BOOL ; 
+        evtReserve : BOOL;    // Reserve  
+    END_STRUCT;  
+     
+  SYS_CLK : DATE_AND_TIME ; 
+  iRET : INT;   
+END_VAR
+
+BEGIN
+
+    // VAR_IN Byte SysClockEvents to temporary WORD; because of a 'S7 VIEW' on a Byte isn't possible we have to use WORD
+    wSysCLKevt := BYTE_TO_WORD(SysClkEvents);  
+    
+    iRET:=READ_CLK(CDT := SYS_CLK); // OUT: DATE_AND_TIME
+                     
+    IF wSysCLKevt <> 0 THEN  // Anything to do? 0 means no acitve EVENT
+                
+        // ----------------------------------------------------------------------
+        //    Every hour
+        // ----------------------------------------------------------------------
+        
+        IF SysCLK.evtHOUR THEN   
+            udt_old.hour := udt_act.hour;  // copy actValue to oldValue
+            udt_old.DT_hour := udt_act.DT_hour; // copy Time Stamp
+            
+            IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+                udt_act.hour := 0;
+            ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+                udt_act.hour := rVALUE;
+            END_IF;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    Every day
+        // ----------------------------------------------------------------------
+        
+        IF SysCLK.evtDAY THEN   
+            udt_old.day := udt_act.day;  // copy actValue to oldValue
+            udt_old.DT_day := udt_act.DT_day; // copy Time Stamp
+            
+            IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+                udt_act.day := 0;
+            ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+                udt_act.day := rVALUE;
+            END_IF;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    Every week
+        // ----------------------------------------------------------------------
+        
+        IF SysCLK.evtWEEK THEN   
+            udt_old.week := udt_act.week;  // copy actValue to oldValue
+            udt_old.DT_week := udt_act.DT_week; // copy Time Stamp
+        
+            IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+                udt_act.week := 0;
+            ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+                udt_act.week := rVALUE;
+            END_IF;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    Every month
+        // ----------------------------------------------------------------------
+        
+        IF SysCLK.evtMONTH THEN   
+            udt_old.month := udt_act.month;  // copy actValue to oldValue
+            udt_old.DT_month := udt_act.DT_month; // copy Time Stamp
+        
+            IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+                udt_act.month := 0;
+            ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+                udt_act.month := rVALUE;
+            END_IF;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    Every year
+        // ----------------------------------------------------------------------
+        
+        IF SysCLK.evtYEAR THEN   
+            udt_old.year := udt_act.year;  // copy actValue to oldValue
+            udt_old.DT_year := udt_act.DT_year; // copy Time Stamp
+        
+            IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+                udt_act.year := 0;
+            ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+                udt_act.year := rVALUE;
+            END_IF;
+        END_IF;
+    END_IF;
+    
+    // ----------------------------------------------------------------------
+    //   USER value 
+    // ----------------------------------------------------------------------
+    
+    IF RESET_USER_VALUE THEN   
+        udt_old.user := udt_act.user;  // copy actValue to oldValue
+        udt_old.DT_user := udt_act.DT_user; // copy Time Stamp
+    
+        IF cfg_MinMax THEN    // if cfgMAX then RESET Value to 0
+            udt_act.user := 0;
+        ELSIF ENABLE THEN     // if cfgMin & ENABLE then RESET Value to actual Value        
+            udt_act.user := rVALUE;
+        END_IF;
+        
+        udt_old.all := udt_act.all;
+        udt_old.DT_all := udt_act.DT_all; // copy Time Stamp
+    
+        udt_old.DT_USER_RESET := udt_act.DT_USER_RESET; 
+        udt_act.DT_USER_RESET := SYS_CLK;  
+    END_IF;
+    
+    IF ENABLE THEN   // if logging is enabled THEN check for new Min/Max
+        
+        // ----------------------------------------------------------------------
+        //    ALL : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.all)) OR (NOT cfg_MinMax AND (rValue < udt_act.all)) THEN
+            udt_act.all := rVALUE;
+            udt_act.DT_all := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    HOUR : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.hour)) OR (NOT cfg_MinMax AND (rValue < udt_act.hour)) THEN
+            udt_act.hour := rVALUE;
+            udt_act.DT_hour := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    DAY : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.day)) OR (NOT cfg_MinMax AND (rValue < udt_act.day)) THEN
+            udt_act.day := rVALUE;
+            udt_act.DT_day := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    WEEK : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.week)) OR (NOT cfg_MinMax AND (rValue < udt_act.week)) THEN
+            udt_act.week := rVALUE;
+            udt_act.DT_week := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    MONTH : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.month)) OR (NOT cfg_MinMax AND (rValue < udt_act.month)) THEN
+            udt_act.month := rVALUE;
+            udt_act.DT_month := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    YEAR : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.year)) OR (NOT cfg_MinMax AND (rValue < udt_act.year)) THEN
+            udt_act.year := rVALUE;
+            udt_act.DT_year := SYS_CLK;
+        END_IF;
+        
+        // ----------------------------------------------------------------------
+        //    USER : MinMax Event -> save new Min/Max
+        // ----------------------------------------------------------------------
+        
+        IF (cfg_MinMax AND (rValue > udt_act.user)) OR (NOT cfg_MinMax AND (rValue < udt_act.user)) THEN
+            udt_act.user := rVALUE;
+            udt_act.DT_user := SYS_CLK;
+        END_IF;
+    END_IF;
+
+END_FUNCTION

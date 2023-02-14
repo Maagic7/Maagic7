@@ -1,0 +1,65 @@
+
+FUNCTION m7_ABS_DIFF_S7SysTime : TIME
+    TITLE = 'Absolute Differenz von 2 S7-Systemzeitwerten 31 Bi;t  0..2147483647 ms'
+
+// ==============================================================================
+// Da die S7 Systemzeit mittels SFC64 "TIME_TCK" nur 31 Bit 0..2147483647ms
+// aufweist gibt es einen Fehler, wenn Zeitdifferenzen über einen
+// TIMER-Überlauf ermittelt werden. Um dies zu verhindern muss die
+// Systemzeit auf 32Bit erweitert werden.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2018
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 03.09.2018   S.Maag      Converted AWL m7b_ABS_DIFF_S7SysTime what is FOR 
+//                          unconditioned AWL call only
+//                          Added Input Parameters SysTime1, SysTime2   
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+(*
+ AWL CODE OF this FUNCTION:
+  
+       L SysTime2                       // 2nd Time
+       SLD 1                            // expand it to full 32Bit
+       L SysTime1                       // 1st Time
+       SLD   1                          // expand it to full 32 Bit
+       -D                               // SysTime1-SysTime2
+       SPPZ  pos                        // 
+       NEGD                             // make result positiv          
+ pos:  SRD   1                          // 32Bit => 31Bit Time
+       T RET_VAL
+*)
+
+VAR_INPUT
+    SysTime1 : TIME;    // The 1st SystemTime
+    SysTime2 : TIME;    // The 2nd SystemTime
+END_VAR
+
+
+VAR_TEMP
+    dTime1 : DINT;  // The DINT-Value of SysTime1, expanded to full 32Bit
+    dTime2 : DINT;  // The DINT-Value of SysTime1, expanded to full 32Bit
+
+    dwRES : DWORD;  // The 32Bit Absolute Difference of the Times in 31Bit
+END_VAR
+
+    // 1st convert the 2 SysTimes to a full 32Bit DINT
+    dTime1 := DWORD_TO_DINT( SHL(IN:= DINT_TO_DWORD(TIME_TO_DINT(SysTime1)), N:=1));
+    dTime2 := DWORD_TO_DINT( SHL(IN:=DINT_TO_DWORD(TIME_TO_DINT(SysTime2)), N:=1));
+    
+    // calculate absolute Difference and ShiftRight 1 Bit to get the Result as 31Bit Time
+    dwRES:= SHR (IN:= DINT_TO_DWORD(ABS(dTime1-dTime2)), N:=1);
+    
+    // convert back the DWORD Result to a IEC-TIME
+    m7_ABS_DIFF_S7SysTime := DINT_TO_TIME(DWORD_TO_DINT(dwRES));
+END_FUNCTION

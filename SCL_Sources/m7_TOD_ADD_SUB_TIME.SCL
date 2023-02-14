@@ -1,0 +1,86 @@
+
+FUNCTION m7_TOD_ADD_SUB_TIME : TOD
+    TITLE = 'Add or Sub a Time to/from a TIME_OF_DAY'
+
+
+// ==============================================================================
+// ADD, SUB a TIME to a TIME_OF_DAY variable, and calculate
+// the correct overflow for the days.
+//
+// TIME_OF_DAY is the time in ms since midnight
+// TOD#00:00:00.000 := 0 = Midnight
+// TOD#23:59:59.999 := 86400000-1  
+// 
+// TIME is a S7 TIME from 
+// T#-24D_20H_31M_23S_648ms up to T#24D_20H_31M_23S_647ms
+//
+// Both are millisecond based values.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 12/2019
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+    TOD_IN : TOD;        // IN: TIME_OF_DAY
+    timDelta: TIME;      // IN: Time to ADD, SUB
+    cfg_ADD_SUB : BOOL;  // FALSE : ADD (+) ; TRUE : SUB (-) 
+END_VAR
+
+VAR_OUTPUT
+    iDaysOverflow : INT;    // Days overflow: +/- of day difference
+END_VAR
+
+VAR_TEMP
+    dMS : DINT;         // milliseconds
+    iOverFlow : INT;    // Value for overlow days
+END_VAR
+
+
+CONST
+    // Range   from - to
+    // TOD#0:0:0.0               - TOD#23:59:59.999 hh:mm:ss.xxx
+    // T#-24D_20H_31M_23S_648MS  - T#24D_20H_31M_23S_647MS
+
+                                //   h *m *s  *ms
+    cst_msPerDay := 86400000;  // = 24*60*60*1000 = 86400000 milliseconds per day
+
+END_CONST
+
+BEGIN
+    IF cfg_ADD_SUB THEN  
+        // SUB
+        dMS := TOD_TO_DINT(TOD_IN) - TIME_TO_DINT(timDelta);
+    ELSE
+        // ADD
+        dMS := TOD_TO_DINT(TOD_IN) + TIME_TO_DINT(timDelta);
+    END_IF;
+    
+    iOverFlow := 0;
+    
+    // IF milliseconds < 0 THEN a negative day overflow exist
+    WHILE dMS < 0 DO
+         dMS := dMS + cst_msPerDay;     // correct the millisecond value 
+         iOverFlow := iOverFlow - 1;    // count the negative day overflow
+    END_WHILE;
+
+   // IF milliseconds >= 86400000ms THEN a positive day overflow exist
+    WHILE dMS >= cst_msPerDay DO
+         dMS := dMS - cst_msPerDay;     // correct the millisecond value 
+         iOverFlow := iOverFlow + 1;    // count the positive day overflow
+    END_WHILE;
+    
+    iDaysOverflow := iOverFlow;              // OUT: DaysOverflow
+    m7_TOD_ADD_SUB_TIME := DINT_TO_TOD (dMS);
+END_FUNCTION

@@ -1,0 +1,292 @@
+// ACHTUNG: nicht Funktionsfähig
+// neue Funktion m7_DATE_Info verwenden
+
+FUNCTION m7_CalendarWeek : VOID
+    TITLE= 'Calendar Week WORLD)'          
+// ==============================================================================
+//  Caluclates the calendar week from a S7_DATE
+//  for EU (iWeek_EU) and Northern America (iWeek_NA)
+//  The function can be used from year 1990 to 2089
+// ==============================================================================
+// 
+// Definitions for Calendar Week conditions can be found at
+// Wikipedia Germany
+// https://de.wikipedia.org/wiki/Woche
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME      DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+(*
+
+https://de.wikipedia.org/wiki/Woche
+
+--------------------------------------------------------------------------------
+    Kalenderwoche in der EU nach ISO 8601
+--------------------------------------------------------------------------------
+Im deutschsprachigen Raum, gemäß Normen der ISO, DIN, ÖNORM und SN: jene Woche,
+die den ersten Donnerstag des Jahres enthält (ISO 8601, früher DIN 1355-1). 
+Äquivalent hierzu sind, da ISO 8601 die den Montag als ersten Tag der Woche definiert!
+
+Die Kalenderwoche ist nach ISO 8601 so definiert:
+
+ -  Kalenderwochen haben 7 Tage, beginnen an einem Montag und werden über das Jahr fortlaufend nummeriert.
+ -  Die Kalenderwoche 1 eines Jahres ist diejenige, die den ersten Donnerstag enthält.  
+ 
+ -  Ein Jahr hat genau dann 53 Kalenderwochen, wenn es mit einem Donnerstag beginnt oder endet:
+       Ein jahr mit 53 Wochen beginnt und endet an einem Donnerstag
+       Ein Schaltjahr mit 53 Wochen beginnt an einem Mittwoch und endet an einem Donnerstag
+                            oder es beginnt an einem Donnerstag und endet an einem Freitag)
+
+ -  Der 29., 30. und 31. Dezember können schon zur Kalenderwoche 1 des Folgejahres gehören.
+ -  Der 1., 2. und 3. Januar können noch zu der letzten Kalenderwoche des Vorjahres gehören.
+ -  Der 4. Januar ist immer in Kalenderwoche 1.
+ 
+--------------------------------------------------------------------------------
+    Kalenderwoche nach jüdisch-christlicher Tradition 
+    Nordamerika, Australien
+--------------------------------------------------------------------------------
+
+ In weiten Teilen der Welt (beispielsweise Nordamerika, Australien) hat sich die
+ jüdisch-christliche Tradition erhalten, den Sonntag als ersten Tag der Woche zu rechnen.
+ In den USA und Ländern, die ebenfalls das dort gültige Schema verwenden, gelten folgende Regeln:
+
+ Jeden Sonntag beginnt eine neue Kalenderwoche.
+ Am 1. Januar beginnt stets – unabhängig vom Wochentag – die 1. Kalenderwoche.
+
+ Daraus lassen sich wiederum einige Eigenschaften ableiten:
+ 
+ - Die erste und die letzte Kalenderwoche eines Jahres müssen nicht vollständig sein,
+   das heißt, sie können weniger als sieben Tage enthalten
+ 
+ - Jedes Jahr, das kein Schaltjahr ist oder dessen 31. Dezember kein Sonntag ist, hat 53 Kalenderwochen
+ 
+ - Falls der 31. Dezember eines Schaltjahres ein Sonntag ist, so liegt dieser Sonntag als 
+   einziger Tag in der 54. Kalenderwoche (dieser Fall tritt relativ selten ein; innerhalb
+   eines Jahrhunderts alle sieben Schaltjahre: zuletzt in den Jahren 1944, 1972 und 2000,
+   die nächsten Male 2028 und 2056
+*)
+
+(*
+
+ Day_Of_Week: S7: 1.1.1990 = Montag, DATE = 0; erster Sonntag ist 6.1.1990 DATE = 6
+
+ Day_of_Week := (DATE_TO_DINT(myDATE  ) MOD 7);   // 0=Mo, ..., 6=So
+ Day_of_Week := (DATE_TO_DINT(myDATE+1) MOD 7);   // 0=So, ..., 6=Sa
+
+ // Folgende Formel sind aus Oscat Library
+
+ // the function works for dates from 1970..2099 for S7 1990..2099
+ YEAR_OF_DATE := DINT_TO_INT(((100 * DATE_TO_DINT(idate)) + 50) / 36525) + 1990;  
+
+ // die ShiftRight 2 Anweisung der org. OSCAT wurde durch /4 ersetzt
+ YEAR_BEGIN := DINT_TO_DATE((INT_TO_DINT(y)*1461-2878169)/4)-7305);
+ YEAR_END   := DINT_TO_DATE((INT_TO_DINT(y+1)*1461-2878169)/4)-7305);
+
+*)
+
+VAR_INPUT
+     inDATE : DATE;
+END_VAR
+
+VAR_OUTPUT
+    iWeek_EU : INT;  // [1..53] Calendar week EU, ISO 8601, week start on monday
+    iWeek_NA : INT;  // [1..54] Calendar week Northern America: 54 its only sunday all 7 leap years next 2028 & 2056
+    iDayOfYear : INT;
+END_VAR
+
+VAR_TEMP
+
+    tmpDATE   : DATE;
+    tmpYear   : DINT;
+    tmpLastYear : DINT;
+    tmpWeek   : DINT;
+    tmpOffset : DINT;
+    
+    DATE_JAN_01 : DATE;
+    
+    WeekDay_JAN_01          : DINT;
+    WeekDay_DEZ_31_LastYear : DINT;
+
+    dDayOfYear_0 : DINT;    // 0-basierter Tag des Jahres [0..364]; Schaltjahr [0..365]
+    dDayForWeek  : DINT;    // Tag des Jahres für Wockenberechnung: OffsetTage die in KW des letzen Jahres fallen sind abgezogen
+       
+    IsLeapYear : BOOL;      // aktuelles Jahr ist Schaltjahr
+    IsLeapLastYear: BOOL;   // letztes Jahr ist Schaltjahr
+    Is_ISO_53_WeekYear : BOOL;
+    Is_ISO_53_WeekLastYear: BOOL;
+    
+END_VAR 
+
+CONST
+    // wir rechnen die Tage 0-basiert, das ist einfacher als 1..7
+    // somit fallen alle +/-1 Korrekturen bei den Berechnungen weg
+    cst_Monday := 0;
+    cst_Tuesday := 1;
+    cst_Wednesday := 2;   
+    cst_Thursday := 3;
+    cst_Friday := 4;
+    cst_Staturday := 5;
+    cst_Sunday := 6;
+END_CONST
+
+      
+BEGIN
+
+    tmpDATE := inDATE;
+ 
+    // Formel von Oscat Library
+    tmpYear     := (((100 * DATE_TO_DINT(tmpDATE)) + 50) / 36525) + 1990;  
+    DATE_JAN_01 := DINT_TO_DATE( (tmpYear*1461 - 2878169)/4 - 7305 );
+    // END_OSCAT 
+    
+    // Day of the Year 0-basiert [0..364]; Schaltjahr [0..365] 
+    dDayOfYear_0 := DINT_TO_INT(DATE_TO_DINT(tmpDATE) - DATE_TO_DINT(DATE_JAN_01));
+
+    // da DATE=0 = 1.1.1990, können wir für Montag =0, einfach MOD 7 rechnen
+    WeekDay_JAN_01 := (DATE_TO_DINT(DATE_JAN_01) MOD 7) ;  // 0=Mo, ..., 6=So
+    
+    // Der 31 Dez. des letzten Jahres ist einen Tag früher, wir müssten also 
+    // WeekDay_JAN_01 - 1 rechnen. Da negative Tage nicht exisitieren und
+    // (X-1) MOD 7 == (X+6) MOD 7, addieren wir 6 satt 1 zu subtrahieren
+    WeekDay_DEZ_31_LastYear := (WeekDay_JAN_01 + 6) MOD 7; // 0=Mo, ..., 6=So
+
+    // ----------------------------------------------------------------------
+    // prüfen ob Schaltjahre beteiligt sind
+    // ----------------------------------------------------------------------
+
+    IsLeapYear := (tmpYear MOD 4)=0;    // Schaltjahr alle 4 Jahre
+    IF IsLeapYear THEN                  // Korrektur für alle 100 & 400 Jahre Zyklen
+        IF (tmpYear MOD 100) = 0 THEN 
+            IsLeapYear := (tmpYear MOD 400) = 0;
+        END_IF;
+    END_IF;  
+     
+    IF IsLeapYear THEN
+        // falls aktuelles Jahr bereits Schaltjahr ist, kann letztes kein Schaltjahr sein
+        IsLeapLastYear := FALSE;
+    ELSE
+        tmpLastYear := tmpYear -1;
+        
+        IsLeapLastYear := (tmpLastYear MOD 4)=0;
+        IF IsLeapLastYear THEN          //  Korrektur für alle 100 & 400 Jahre Zyklen
+            IF (tmpLastYear MOD 100) = 0 THEN 
+                IsLeapLastYear := (tmpLastYear MOD 400) = 0;
+            END_IF;
+        END_IF;  
+    END_IF;
+   
+    // ======================================================================
+    //              KW nach ISO (EUROPA)
+    // ======================================================================
+ 
+    // ----------------------------------------------------------------------
+    //   prüfen ob Jahre mit 53 Wochen beteiligt sind
+    // ----------------------------------------------------------------------
+     
+    // Ein normales Jahr mit 53 KW beginnt und endet immer an einem Donnerstag
+    // ein Schaltjahr mit 53 KW beginnt (Mittwoch | Donnerstag) und endet dann (Donnerstag | Freitag)     
+    
+    Is_ISO_53_WeekYear := FALSE;
+    IF WeekDay_JAN_01 = cst_Thursday THEN
+        Is_ISO_53_WeekYear := TRUE;  // Wenn Jahr Donnerstag beginnt hat es immer 53KW
+    ELSIF IsLeapYear THEN
+        Is_ISO_53_WeekYear := (WeekDay_JAN_01 = cst_Wednesday); // Schaltjahr hat auch 53 KW wenn es Mittwoch beginnt
+    END_IF;     
+    
+    Is_ISO_53_WeekLastYear := FALSE;
+    IF WeekDay_DEZ_31_LastYear = cst_Thursday THEN
+        Is_ISO_53_WeekLastYear := TRUE;
+    ELSIF IsLeapLastYear THEN
+       Is_ISO_53_WeekLastYear := (WeekDay_DEZ_31_LastYear = cst_Friday);
+    END_IF;
+    
+    // Die Kalenderwoche 1 eines Jahres ist diejenige, die den ersten Donnerstag enthält.
+    // D.h. 1.Jan = [Mo..Do], dann keine Tage im alten Jahr,
+    // Wenn 1.Jan = [Fr..So], dann fallen diese Tage ins alte Jahr, das sind max 3 Tage.
+    // Anzahl Tage berechnen, die noch zur KW des letzen Jahres gehören
+     
+    IF WeekDay_JAN_01 > cst_Thursday THEN  
+     // Da der 1. Donnerstag immer in KW 1 liegt fallen 
+     // Jahresbeginne mit (FR/SA/SO) noch in die KW des Vorjahres
+     
+        dDayForWeek := dDayOfYear_0 - (WeekDay_JAN_01-cst_Thursday);
+        // fuer 1.Jan : So = -3
+        //              Sa = -2
+        //              Fr = -1
+      
+        // befinden wir uns in diesen ersten max. 3 Tagen?
+        IF dDayForWeek < 0 THEN 
+            IF Is_ISO_53_WeekLastYear THEN 
+                tmpWeek := 53;  // KW 53 des letzten Jahres
+            ELSE
+                tmpWeek := 52;  // KW 52 des letzten Jahres
+            END_IF;
+        END_IF;
+    
+    ELSE  // keine Tage in KW des letzten Jahres
+    
+        dDayForWeek := dDayOfYear_0 + WeekDay_JAN_01;
+
+        tmpWeek := dDayForWeek / 7 + 1;
+        
+        // Bei 52 Wochen Jahren, laufen evtl. Tage in KW 1 des Folgejahres über   
+        IF (tmpWeek = 53) AND NOT Is_ISO_53_WeekYear THEN
+            tmpWeek := 1; //  KW 1 des Folgejahres
+        END_IF;
+        
+    END_IF;
+   
+    iWeek_EU := DINT_TO_INT(tmpWeek);  // KW nach ISO zurückgeben
+
+    // ======================================================================
+    //     KW Northern America: am 1. Januar beginnt immer KW 1 
+    // ======================================================================
+
+    tmpOffset := cst_Sunday - WeekDay_JAN_01; // = 0..6 Tage bis zum 1. Sonntag des Jahres
+    
+    // Tage verschieben, so dass wir mit der KW Berechung am 1. Sonntag
+    // des Jahres starten.
+    dDayForWeek := dDayOfYear_0 - tmpOffset;
+    
+    IF dDayForWeek < 0 THEN 
+        // wir befinden uns in der 1. nicht vollständigen Woche
+        tmpWeek := 1;
+    ELSE
+        tmpWeek := dDayForWeek / 7 + 2; // +2, da erste vollständige Woche KW2
+        
+        IF tmpOffset = 0 THEN   
+        // Falls aber Jahr am Sonntag begonnen hat (tmpOffset=0) 
+        // dann müssen wir korrigieren, da eine unvollständige 1. Woche
+        // nicht exisitiert hat! Wir diese aber mitberechnet haben (+2)
+            tmpWeek := tmpWeek - 1;
+        END_IF;
+    END_IF;
+    
+    iWeek_NA := DINT_TO_INT(tmpWeek);  // KW Nordamerika zurückgeben
+
+    iDayOfYear := DINT_TO_INT(dDayOfYear_0) + 1;  // Tag des Jahres [1..365/366] zurückgeben
+
+END_FUNCTION    
+
+
+
+
+
+
+
+
+
+
+        

@@ -1,0 +1,139 @@
+// ******************************************************************************
+//   BitTo INT/DINT/REAL FUNCTIONS
+//
+//   FUNCTION m7_BitToINT  : INT      // FC 19
+//   FUNCTION m7_BitToDINT : DINT     // FC 29
+//   FUNCTION m7_BitToREAL : REAL     // FC 39
+// 
+// ******************************************************************************
+
+// Compiler Option SetOKFlag : switch OFF OverflowCheck
+{SCL_SetOKFlag := 'n'}   
+
+
+FUNCTION "m7_BitToINT" : INT
+    TITLE = 'BitToInt, wandlet ein Bit in einen INT'
+
+// ==============================================================================
+// Je nach dem Wert des Eingangsbits wird der Wert
+// VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+// Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 12/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Coverted AWL to SCL version
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  BIT : BOOL ;    // The Bit
+  VAL_0 : INT ;    // Value if Bit=FLASE
+  VAL_1 : INT ;    // Value if Bit=TRUE
+END_VAR
+
+BEGIN
+    IF BIT THEN
+        m7_BitToINT := VAL_1;
+    ELSE
+        m7_BitToINT := VAL_0;
+    END_IF;
+   
+    OK := BIT;  // ENO := BIT;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_BitToDINT" : DINT
+    TITLE ='BitToDINT, wandlet ein Bit in einen DINT'
+
+// ==============================================================================
+// Je nach dem Wert des Eingangsbits wird der Wert
+// VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+// Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 12/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Coverted AWL TO SCL version
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  BIT : BOOL ;    // The Bit
+  VAL_0 : DINT ;    // Value if Bit=FLASE
+  VAL_1 : DINT ;    // Value if Bit=TRUE
+END_VAR
+
+BEGIN
+
+     // m7_BitToDINT := SEL(G:=BIT, IN0:=VAL_0, IN1:=VAL_1);  // braucht mehr Speicher als IF BIT
+
+    IF BIT THEN
+        m7_BitToDINT := VAL_1;
+    ELSE
+        m7_BitToDINT := VAL_0;
+    END_IF;
+
+    OK := BIT;  // ENO := BIT;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_BitToREAL" : REAL
+    TITLE ='BitToREAL, wandlet ein Bit in einen REAL'
+
+// ==============================================================================
+// Je nach dem Wert des Eingangsbits wird der Wert
+// VAL_0 oder VAL_1 als Ausgangswert VAL ausgegeben.
+// Der Wert der Eingangsbits wird auf den FC-ENO-Ausgang durchgeschleift
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 12/2004
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Coverted AWL TO SCL version
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  BIT : BOOL ;    // The Bit
+  VAL_0 : REAL ;    // Value if Bit=FLASE
+  VAL_1 : REAL ;    // Value if Bit=TRUE
+END_VAR
+
+BEGIN
+    IF BIT THEN
+        m7_BitToREAL := VAL_1;
+    ELSE
+        m7_BitToREAL := VAL_0;
+    END_IF;
+   
+    OK := BIT;  // ENO := BIT;
+
+END_FUNCTION

@@ -1,0 +1,75 @@
+
+FUNCTION m7_DT_TOD : TIME_OF_DAY
+    TITLE = 'Date_And_Time to TIME_OF_DAY'
+
+// ==============================================================================
+// Extract the TIME_OF_DAY from the S7_Date_And_Time Format
+// m7_DT_TOD can be used instead OF Siemens IEC Library FC8 : DT_TOD
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//  
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    IN : DATE_AND_TIME; //  DT#yy-mm-dd-hh:mm:ss.sss
+END_VAR
+
+VAR_TEMP
+    // temporäre Variablen
+    
+    tmpDT : DATE_AND_TIME;    
+    ptrDT AT tmpDT : STRUCT   // Pointer to tmpDT AS STRUCT (like a C++ UNION)
+        Year: BYTE;
+        Month: BYTE;
+        Day: BYTE;
+        Hour: BYTE;
+        Minute : BYTE;
+        Second : BYTE;
+        ms : BYTE;  // ms and Weekday LSB 0..3 Weekday
+        ms_WeekDay : BYTE;
+    END_STRUCT;
+    
+    hh : INT;   // hours converted from BCD to INT
+    mm : INT;   // minutes converted from BCD to INT
+    ss : INT;   // seconds converted from BCD to INT
+    Millis : INT;   // milliseconds converted from BCD to INT
+    tmpRET : DINT;
+    MyOK : BOOL;
+    
+END_VAR
+
+BEGIN    
+    tmpDT := IN;
+    
+    // converts the BCD-Values to INT; automatically check for valid BCD values and limit each digit to max 9
+    hh :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Hour);  // IN: BYTE
+    MyOK := OK;
+    mm :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Minute);  // IN: BYTE
+    MyOK := OK AND MyOK;
+    ss :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Second);  // IN: BYTE
+    MyOK := OK AND MyOK;             
+    
+    // Lo digit of ms (0..9ms)
+    Millis := m7_BCD_BYTE_TO_INT(bytBCD := SHR(IN:=ptrDT.ms_Weekday, N:=4));  // IN: BYTE
+    MyOK := OK AND MyOK;     
+    // 2 high digits of ms (10..990)
+    Millis := Millis + m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.ms) * 10;  // IN: BYTE
+    MyOK := OK AND MyOK;             
+
+    tmpRET := (hh * 3600 + mm *60 + ss) * 1000 + Millis;
+    
+    OK:= MyOK; // TRUE if all BCDs where valid; FALSE if 1 of the BCD digits was out of range                          
+       
+    m7_DT_TOD := DINT_TO_TOD(tmpRET);                      
+END_FUNCTION

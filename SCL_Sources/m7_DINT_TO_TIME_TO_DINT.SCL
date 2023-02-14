@@ -1,0 +1,259 @@
+// ******************************************************************************
+//  
+//  FUNCTION m7_DINT_TO_TIME_MinMax : TIME   // FC161
+//  FUNCTIOM m7_TIME_TO_DINT        : DINT   // FC162
+//  FUNCTION m7_DINT_TO_TIME        : TIME   // FC163
+
+
+// ******************************************************************************
+
+FUNCTION "m7_DINT_TO_TIME_MinMax" : TIME
+    TITLE ='Multiformat DINT-Time to IEC-Time with MinMax Limit'
+
+// ==============================================================================
+// DINT MultiFormat Time to IEC-Time [ms]
+// 0 : OUT:=IN; (m7_DINT_TO_TIME_MinMax := dValue)
+// 1 : 1/10s;   (m7_DINT_TO_TIME_MinMax := dValue *100)
+// 2 : seconds; (m7_DINT_TO_TIME_MinMax := dValue *1000)
+// 3 : minutes; (m7_DINT_TO_TIME_MinMax := dValue *60 *1000)
+// 4 : hours;   (m7_DINT_TO_TIME_MinMax := dValue *60 *60 *1000)
+// 5 : mm.ss;   (m7_DINT_TO_TIME_MinMax := (mm[dValue] * 60 + ss[dValue])*1000
+// 6 : hh.mm;   (m7_DINT_TO_TIME_MinMax := (hh[dValue] * 3600 + mm[dValue]*60)*1000
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2019
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 02.03.2019   S.Maag      
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    dMin: DINT;
+    dMax: DINT;
+    cfg_Format: INT; // 1:1/10sec; 2:s; 3:m; 4:h; 5:mm.ss; 6:hh.mm
+END_VAR
+
+VAR_IN_OUT
+    dValue: DINT;
+END_VAR
+
+VAR
+    m_Val : DINT;
+    ret : DINT;
+    rest : DINT;
+END_VAR
+
+
+BEGIN
+   
+    m_Val:= LIMIT(MN:=dMin, IN:=dValue, MX:=dMax);
+    IF m_Val<> dValue THEN dValue := m_Val; END_IF;
+    
+    rest :=0;     
+    CASE cfg_Format OF
+        1 : // 1/10sec
+          ret := m_Val *100;
+        
+        2 : // sec
+             ret := m_Val *1000;
+        
+        3:  // min
+             ret := m_Val *60 *1000;
+             
+        4:  // h
+             ret := m_Val *3600 *1000;
+             
+        5:  // mm.ss
+            rest := (m_Val MOD 100);
+            ret := m_Val / 100 * 60 *1000 + rest * 1000 ;
+            
+        6:  // hh.mm
+            rest := (m_Val MOD 100);
+            ret := m_Val / 100 * 3600 *1000 + rest * 60 *1000 ;
+         
+    ELSE:
+    
+        ret:= m_Val;  // If cfg_Format=0 or unvalid RET_VAL:=dValue;
+    END_CASE;
+
+    IF rest >59 THEN dValue := dValue +40; END_IF;  // Overflow correction of DINT Multiformat Input          
+
+    m7_DINT_TO_TIME_MinMax := DINT_TO_TIME(ret);
+
+    OK:=TRUE;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_DINT_TO_TIME" : TIME
+    TITLE ='Multiformat DINT-Time to IEC-Time'
+
+// ==============================================================================
+// DINT MultiFormat Time to IEC-Time [ms]
+// 0 : OUT:=IN; (m7_DINT_TO_TIME_MinMax := dValue)
+// 1 : 1/10s;   (m7_DINT_TO_TIME_MinMax := dValue *100)
+// 2 : seconds; (m7_DINT_TO_TIME_MinMax := dValue *1000)
+// 3 : minutes; (m7_DINT_TO_TIME_MinMax := dValue *60 *1000)
+// 4 : hours;   (m7_DINT_TO_TIME_MinMax := dValue *60 *60 *1000)
+// 5 : mm.ss;   (m7_DINT_TO_TIME_MinMax := (mm[dValue] * 60 + ss[dValue])*1000
+// 6 : hh.mm;   (m7_DINT_TO_TIME_MinMax := (hh[dValue] * 3600 + mm[dValue]*60)*1000
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2022
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 01.03.2022   S.Maag      based on m7_DINT_TO_TIME_MinMax, removed MinMax
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    cfg_Format: INT; // 1:1/10sec; 2:s; 3:m; 4:h; 5:mm.ss; 6:hh.mm
+END_VAR
+
+VAR_IN_OUT
+    dValue: DINT;
+END_VAR
+
+VAR
+    m_Val : DINT;
+    ret : DINT;
+    rest : DINT;
+END_VAR
+
+
+BEGIN
+
+    m_Val:= dValue;
+         
+    rest :=0;     
+    CASE cfg_Format OF
+        1 : // 1/10sec
+             ret := m_Val *100;
+        
+        2 : // sec
+             ret := m_Val *1000;
+        
+        3:  // min
+             ret := m_Val *60 *1000;
+             
+        4:  // h
+             ret := m_Val *3600 *1000;
+             
+        5:  // mm.ss
+            rest := (m_Val MOD 100);
+            ret := m_Val / 100 * 60 *1000 + rest * 1000 ;
+            
+        6:  // hh.mm
+            rest := (m_Val MOD 100);
+            ret := m_Val / 100 * 3600 *1000 + rest * 60 *1000 ;
+         
+    ELSE:
+    
+        ret:= m_Val;  // If cfg_Format=0 or unvalid RET_VAL:=dValue;
+    END_CASE;
+
+    IF rest >59 THEN dValue := dValue +40; END_IF;  // Overflow correction of DINT Multiformat Input          
+
+    m7_DINT_TO_TIME := DINT_TO_TIME(ret);
+    OK:=TRUE;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_TIME_TO_DINT" : DINT
+
+    TITLE ='IEC-TIME to Multiformat DINT Time'
+
+// ==============================================================================
+// DINT MultiFormat Time to IEC-Time [ms]
+// 0 : OUT:=IN; (m7_TIME_TO_DINT := dValue)
+// 1 : 1/10s;   (m7_TIME_TO_DINT := dValue /100)
+// 2 : seconds; (m7_TIME_TO_DINT := dValue /1000)
+// 3 : minutes; (m7_TIME_TO_DINT := dValue /60 /1000)
+// 4 : hours;   (m7_TIME_TO_DINT := dValue /60 /60 /1000)
+// 5 : mm.ss;   (m7_TIME_TO_DINT := (mm[dValue] / 60 + ss[dValue])*1000
+// 6 : hh.mm;   (m7_TIME_TO_DINT := (hh[dValue] / 3600 + mm[dValue]*60)*1000
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2019
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 03.03.2019   S.Maag      
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    cfg_Format: INT; // 1:1/10sec; 2:s; 3:m; 4:h; 5:mm.ss; 6:hh.mm
+END_VAR
+
+VAR_IN_OUT
+    timValue: TIME;
+END_VAR
+
+VAR
+    m_Val : DINT;
+    ret : DINT;
+END_VAR
+
+
+BEGIN
+   
+    m_VAL := TIME_TO_DINT(timValue);         
+    
+    CASE cfg_Format OF
+        1 : // 1/10sec
+          ret := m_Val /100;
+        
+        2 : // sec
+             ret := m_Val /1000;
+        
+        3:  // min
+             ret := m_Val /60 /1000;
+             
+        4:  // h
+             ret := m_Val /3600 /1000;
+             
+        5:  // mm.ss
+            m_Val := m_Val/1000;  // convert to seconds
+            ret := m_Val/60*100 + (m_Val MOD 60);
+        
+        6:  // hh.mm
+            m_Val := m_Val/1000/60;  // convert to minutes
+            ret := m_Val/60 * 100 + (m_Val MOD 60);
+         
+    ELSE:
+            ret:= m_Val;  // If cfg_Format=0 or unvalid RET_VAL:=dValue;
+            
+    END_CASE;
+
+    
+    m7_TIME_TO_DINT := ret;
+
+    OK:=TRUE;
+
+END_FUNCTION
+

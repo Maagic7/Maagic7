@@ -1,0 +1,35 @@
+FUNCTION m7_DT_MOVE : Date_And_Time
+    TITLE = 'Moves the S7 Date_And_Time DataType'
+
+// ==============================================================================
+// Move/copy the S7 8 BYTE DATE_AND_TIME DataType!
+// With the S7 SFC20 BLOCK_MOVE it is NOT possible TO
+// copy a DATE_AND_TIME variable. Because OF this we
+// need a special FC FOR this operation.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//  
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    DT_IN : DATE_AND_TIME;    
+END_VAR
+
+VAR_TEMP
+
+END_VAR
+
+BEGIN
+    m7_DT_MOVE := DT_IN;  // In SCL it's easy to move a Date_And_Time
+END_FUNCTION

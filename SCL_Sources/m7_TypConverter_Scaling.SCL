@@ -1,0 +1,124 @@
+
+// ******************************************************************************
+//   Typ Converter FUNCTIONS with scaling
+//   This is the SCL Version of the m7t_TypConverter functions with scaling
+//
+//   FUNCTION m7_ScaleRealToINT  : INT     // FC 181
+//   FUNCTION m7_ScaleRealToDINT : DINT    // FC 182
+// ******************************************************************************
+
+// Compiler Option SetOKFlag : switch OFF OverflowCheck
+{SCL_SetOKFlag := 'n'}   
+
+// ******************************************************************************
+
+FUNCTION "m7_ScaleRealToINT" : INT
+    TITLE ='Bereicomch Skalieren von REAL nach INT'
+
+// ==============================================================================
+// Skaliert eienen Wert von einem Eingagswertebereich auf einen
+// Ausgangswertebereich:
+// 
+// ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//          und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//          der FC-ENO-Ausgang "1"
+// 
+// z.B. Eingangswertebereich 100 -  300   
+//      Ausgangswertebereich   0 - 1000
+// 
+//                            (MaxOutput - MinOutput)
+// Xout = (Value - MinInput) --------------------------  + MinOutput
+//                             (MaxInput - MinInput) 
+// 
+// ==============================================================================
+// 
+// AUTHOR: S.Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 11/2013
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+VAR_INPUT
+    rMinInput : REAL;
+    rMaxInput : REAL;
+    rValue    : REAL;
+    iMinOutput : INT;
+    iMaxOutput : INT;
+END_VAR
+
+VAR_TEMP
+    // temporäre Variablen
+
+END_VAR
+
+    m7_ScaleRealToINT := REAL_TO_INT(
+                            (rValue - rMinInput) *
+                            INT_TO_REAL(iMaxOutput - iMinOutput)/
+                            (rMaxInput-rMinInput) 
+                         )+ iMinOutput;
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION "m7_ScaleRealToDINT" : DINT
+    TITLE ='Bereich Skalieren von REAL nach INT'
+
+// ==============================================================================
+// Skaliert eienen Wert von einem Eingagswertebereich auf einen
+// Ausgangswertebereich:
+// 
+// ACHTUNG: die Eingangswerte werden nicht auf Gültigkeit geprüft 
+//          und der Ausgangswert wird nicht begrenzt. Bei Übersteuerung wird
+//          der FC-ENO-Ausgang "1"
+// 
+// z.B. Eingangswertebereich 100 -  300   
+//      Ausgangswertebereich   0 - 1000
+// 
+// .                           (MaxOutput - MinOutput)
+// Xout = (Value - MinInput) --------------------------  + MinOutput
+// .                            (MaxInput - MinInput) 
+// 
+// ==============================================================================
+// 
+// AUTHOR: S.Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 11/2013
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 12.03.2021   S.Maag      Coverted to SCL version
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR : 'S.Maag'
+    FAMILY : 'Maagic7'
+
+VAR_INPUT
+    rMinInput : REAL;
+    rMaxInput : REAL;
+    rValue    : REAL;
+    dMinOutput : INT;
+    dMaxOutput : INT;
+END_VAR
+
+VAR_TEMP
+    // temporäre Variablen
+
+END_VAR
+
+    m7_ScaleRealToDINT := REAL_TO_DINT(
+                             (rValue - rMinInput) * 
+                             DINT_TO_REAL(dMaxOutput - dMinOutput) / 
+                             (rMaxInput-rMinInput) 
+                          )+ dMinOutput;
+
+END_FUNCTION

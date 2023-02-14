@@ -1,0 +1,99 @@
+
+FUNCTION m7_STATUS_VALVE : INT
+    TITLE ='Detailed Valve Status'
+
+// ==============================================================================
+// Attention: Different STATUS values for AUTO and HAND mode possible.
+// in Hand Mode 10 is added to the STATUS value. This is to draw the HMI-Valve
+// with a different frame color in HAND Mode.
+// Generally I use orange to indicate HAND Mode.
+//     
+// If different color for Hand Mode should be deactivated, call 
+// the FC with AUTO=TRUE!
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 9/2018
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2003
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  COIL_A : BOOL ;    //Coil A activated (working position / open)
+  COIL_B : BOOL ;    //Coil B activated (home position / close)
+  POS_A : BOOL ;    //Position A reached (working position / open)
+  POS_B : BOOL ;    //Position B reached (home position / closed)
+  ERR_POS_A : BOOL ;    //Error Position A (working position / open)
+  ERR_POS_B : BOOL ;    //Error Position B (home position / closed)
+  AUTO : BOOL ;    //Auto Mode (If NOT AUTO THEN ADD (STATUS, 10)) for different Frame color in HAND
+END_VAR
+
+VAR_TEMP
+    tmpStatus : INT;
+END_VAR
+
+
+CONST
+  (* STATUS VALUEs
+    AUTO : HAND
+    0    : 10    = no Action / keine Aktion aktiv bzw. undefiniert
+    1    : 11    = Position A (working position / 'open')
+    2    : 12    = Position B (homne psotion / 'closed')
+    3    : 13    = moving to A
+    4    : 14    = moving to B
+    5    : 15    = Error Position A
+    6    : 16    = Error Position B
+    *)
+
+    cst_NoAction := 0;
+    cst_PosA := 1;
+    cst_PosB := 2;
+    cst_MoveA := 3;
+    cst_MoveB := 4;
+    cst_Err_PosA := 5;
+    cst_Err_PosB := 6;
+END_CONST
+
+    IF ERR_POS_A THEN
+        // Fehler Position A (Arbeitsstellung)
+        tmpStatus := cst_Err_PosA;
+    ELSIF ERR_POS_B THEN
+        // Fehler Position B (Grundstellung)
+        tmpStatus :=cst_Err_PosB;
+    ELSIF POS_A AND NOT COIL_B THEN
+        // Position A erreicht (Arbeitsstellung)
+        tmpStatus :=cst_PosA;
+    ELSIF POS_B AND NOT COIL_A THEN
+        //  Position B erreicht (Grundstellung)
+        tmpStatus :=cst_PosB;
+    ELSIF COIL_A THEN
+        // fährt zu Position A (Arbeitsstellung)
+        tmpStatus :=cst_MoveA;
+    ELSIF COIL_B THEN
+        // fährt zu Position B (Grundstellung)
+        tmpStatus :=cst_MoveB;
+    ELSE 
+        tmpStatus := cst_NoAction;
+    END_IF;
+    
+    IF NOT AUTO THEN
+        tmpStatus := tmpStatus +10;
+    END_IF;
+    
+    m7_STATUS_VALVE:=tmpStatus;
+        
+    OK := TRUE;
+
+END_FUNCTION

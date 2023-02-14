@@ -1,0 +1,740 @@
+(*
+
+https://de.wikipedia.org/wiki/Message-Digest_Algorithm_5
+
+// Beachte: Alle Variablen sind vorzeichenlose (unsigned) 32-Bit-Werte und
+// verhalten sich bei Berechnungen kongruent (=) modulo 2^32
+    
+ // Definition der linksrotation Funktion, c ist der übergebene Wert von s[i] - siehe Hauptschleife
+linksrotation(x, c)
+    return (x << c)binär or (x >> (32-c));
+    
+// s definiert die Anzahl der Bits, die pro Runde rotiert werden:
+var uint[64] s, K
+s[ 0..15] := { 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22}
+s[16..31] := { 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20}
+s[32..47] := { 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23}
+s[48..63] := { 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21}
+    
+// Verwende den binären Vorkommateil vom 2^32-fachen Betrag des Sinus
+// von Integerwerten als Konstanten:
+für alle i von 0 bis 63
+(
+    K[i] := floor(abs(sin(i + 1)) × 2^32)
+)
+
+// Alternativ kann man auch folgende Tabelle nutzen:
+K[ 0.. 3] := { 0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee }
+K[ 4.. 7] := { 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501 }
+K[ 8..11] := { 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be }
+K[12..15] := { 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821 }
+K[16..19] := { 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa }
+K[20..23] := { 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8 }
+K[24..27] := { 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed }
+K[28..31] := { 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a }
+K[32..35] := { 0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c }
+K[36..39] := { 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70 }
+K[40..43] := { 0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05 }
+K[44..47] := { 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665 }
+K[48..51] := { 0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039 }
+K[52..55] := { 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1 }
+K[56..59] := { 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1 }
+K[60..63] := { 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391 }
+    
+// Initialisiere die Variablen: (lt. RFC 1321)
+var uint a0 := 0x67452301
+var uint b0 := 0xEFCDAB89
+var uint c0 := 0x98BADCFE
+var uint d0 := 0x10325476
+    
+// Vorbereitung der Nachricht 'message':
+var uint message_laenge := bit_length(message)
+erweitere message um bit "1"
+erweitere message um bits "0" bis Länge von message in bits = 448 (mod 512)
+erweitere message um message_laenge als 64-Bit little-endian Integer
+    
+// Verarbeite die Nachricht in aufeinander folgenden 512-Bit-Blöcken:
+für alle 512-Bit Block von message
+(
+    unterteile Block in 16 32-bit little-endian Worte M[i], 0 = i = 15
+    
+    // Initialisiere den Hash-Wert für diesen Block:
+    var uint A := a0
+    var uint B := b0
+    var uint C := c0
+    var uint D := d0
+    
+    // Hauptschleife:
+    // not Operator entspricht dem Einerkomplement
+    für alle i von 0 bis 63
+    (
+        wenn 0 = i = 15 dann
+            F := (B and C) or ((not B) and D)
+            g := i
+        sonst wenn 16 = i = 31 dann
+            F := (B and D) or (C and (not D))
+            g := (5×i + 1) mod 16
+        sonst wenn 32 = i = 47 dann
+            F := B xor C xor D
+            g := (3×i + 5) mod 16
+        sonst wenn 48 = i = 63 dann
+            F := C xor (B or (not D))
+            g := (7×i) mod 16
+        wenn_ende
+        
+        temp := D
+        D := C
+        C := B
+        B := B + linksrotation((A + F + K[i] + M[g]), s[i])
+        A := temp
+    )
+    
+    // Addiere den Hash-Wert des Blocks zur Summe der vorherigen Hashes:
+    a0 := a0 + A
+    b0 := b0 + B
+    c0 := c0 + C
+    d0 := d0 + D
+)
+    
+var uint digest := a0 anfügen b0 anfügen c0 anfügen d0 // Darstellung als little-endian
+
+Anstatt der Originalformulierung aus dem RFC 1321 kann zur Effizienzsteigerung Folgendes verwendet werden:
+
+( 0 = i = 15): F := D xor (B and (C xor D))
+(16 = i = 31): F := C xor (D and (B xor C))
+*)
+
+(*
+// s definiert die Anzahl der Bits, die pro Runde rotiert werden:
+s[ 0..15] := { 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22}
+s[16..31] := { 5,  9, 14, 20, 5,  9, 14, 20, 5, 9,  14, 20, 5, 9,  14, 20}
+s[32..47] := { 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23}
+s[48..63] := { 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21}
+*)
+
+(*
+    // Alternativ kann man auch folgende Tabelle nutzen:
+K[ 0.. 3] := { D76AA478, E8C7B756, 242070DB, C1BDCEEE }
+K[ 4.. 7] := { F57C0FAF, 4787C62A, A8304613, FD469501 }
+K[ 8..11] := { 698098D8, 8B44F7AF, FFFF5BB1, 895CD7BE }
+K[12..15] := { 6B901122, FD987193, A679438E, 49B40821 }
+K[16..19] := { F61E2562, C040B340, 265E5A51, E9B6C7AA }
+K[20..23] := { D62F105D, 02441453, D8A1E681, E7D3FBC8 }
+K[24..27] := { 21E1CDE6, C33707D6, F4D50D87, 455A14ED }
+K[28..31] := { A9E3E905, FCEFA3F8, 676F02D9, 8D2A4C8A }
+K[32..35] := { FFFA3942, 8771F681, 6D9D6122, FDE5380C }
+K[36..39] := { A4BEEA44, 4BDECFA9, F6BB4B60, BEBFBC70 }
+K[40..43] := { 289B7EC6, EAA127FA, D4EF3085, 04881D05 }
+K[44..47] := { D9D4D039, E6DB99E5, 1FA27CF8, C4AC5665 }
+K[48..51] := { F4292244, 432AFF97, AB9423A7, FC93A039 }
+K[52..55] := { 655B59C3, 8F0CCC92, FFEFF47D, 85845DD1 }
+K[56..59] := { 6FA87E4F, FE2CE6E0, A3014314, 4E0811A1 }
+K[60..63] := { F7537E82, BD3AF235, 2AD7D2BB, EB86D391 }
+*)
+
+FUNCTION_BLOCK m7_MD5_128Bit
+    TITLE = 'Calculates the 128Bit MD5 Fingerprint of a DataBlock'
+
+// ==============================================================================
+//  128Bit MD5 Fingerprint calculation
+// ==============================================================================
+//
+// AUTHOR: S. Maag 
+// DATE: 4/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '0.2'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    Start : BOOL;
+    inDataANY : ANY;      // Data/Message to encode
+END_VAR
+
+VAR_OUTPUT
+    Busy : BOOL;
+    Ready : BOOL;
+    BlockCount : DINT;
+
+    MD5_a0 : DWORD;
+    MD5_b0 : DWORD;
+    MD5_c0 : DWORD;
+    MD5_d0 : DWORD;
+END_VAR
+
+VAR_TEMP
+
+    A,  B,  C,  D  : DWORD;
+    F              : DWORD;
+    g              : DINT;
+    
+    gg,kk : DINT;
+    ss : INT;
+    
+    MsgLengthBit   : DINT;      // Länge unser Daten in Bits = Anzahl Bytes *8
+ 
+    pMsgLengthBit AT MsgLengthBit : STRUCT
+        HiHiByte : BYTE;
+        HiByte   : BYTE;
+        LoByte   : BYTE;
+        LoLoByte : BYTE;
+    END_STRUCT;
+    
+    I, J : DINT;               // Schleifenvariablen
+    dwTmp : DWORD;
+    dwMem: DWORD;
+    
+    buf : ARRAY[0..15] OF DWORD;            // 512-Bit Buffer for Message
+    pB_buf AT buf : ARRAY[0..63]  OF BYTE;      // *buf[] : BYTE;
+ 
+    BlkAny : ANY;           // ANY für max 512 Bit /64 Byte aus inDataANY Speicherbereich kopieren, unsere Datenblocks
+    pBlkAny AT BlkAny : STRUCT
+       ID  : WORD;  // ID für ANY (1002 hex = es wird mit Bytes gearbeitet)
+       REP : WORD;   // Wiederholungsfaktor
+       DBNo: INT;   // DB der im ANY Pointer benutzt wird ANY
+       PTR : DWORD; // Pointer Doppelwort um den Angfang des Datenbereichs und den Datentyp zu definieren (84hex = DB Datentyp)
+    END_STRUCT;
+
+    iBytesToCopy : INT;
+    iRET        : INT;
+    
+    xPause : BOOL;    
+
+END_VAR
+
+VAR
+    a0, b0, c0, d0 : DWORD;
+    diRestBytes  : DINT;
+    BlockPointer : DWORD;
+
+    s : ARRAY[0..63] OF INT;
+    k : ARRAY[0..63] OF DWORD;
+  
+    xInit : BOOL;
+  
+    xAddHiBit   : BOOL;
+    xHiBitAdded : BOOL;
+    xLastBlock  : BOOL;
+    oldStart    : BOOL;
+END_VAR
+
+CONST
+    cst_BlocksPerCycle := 10;        // Anzahl der zu berechnenden Blocks pro SPS Zyklus
+END_CONST
+
+
+BEGIN
+
+// allein die Initialisierung der beiden ARRAYs sind 1kB an Code
+// die Arrays könnte man noch in einen DB auslagern und an den FC übergeben
+
+    // ======================================================================
+    //    Initialisierungen
+    // ======================================================================
+
+    IF NOT xInit THEN
+        // ROL ARRAY, Anzahl der zu rotierenden Bits
+        s[0]:= 7; s[4]:= 7;  s[8]:= 7; s[12]:= 7;
+        s[1]:=12; s[5]:=12;  s[9]:=12; s[13]:=12;
+        s[2]:=17; s[6]:=17; s[10]:=17; s[14]:=17;
+        s[3]:=22; s[7]:=22; s[11]:=22; s[15]:=22;
+        
+        s[16]:= 5; s[20]:= 5; s[24]:= 5; s[28]:= 5;
+        s[17]:= 9; s[21]:= 9; s[25]:= 9; s[29]:= 9;
+        s[18]:=14; s[22]:=14; s[26]:=14; s[20]:=14;
+        s[19]:=20; s[23]:=20; s[27]:=20; s[31]:=20;
+        
+        s[32]:= 4; s[36]:= 4; s[40]:= 4; s[44]:= 4;
+        s[33]:=11; s[37]:=11; s[41]:=11; s[45]:=11;
+        s[34]:=16; s[38]:=16; s[42]:=16; s[46]:=16;
+        s[35]:=23; s[39]:=23; s[43]:=23; s[47]:=23;
+        
+        s[48]:= 6; s[52]:= 6; s[56]:= 6; s[60]:= 6;
+        s[49]:=10; s[53]:=10; s[57]:=10; s[61]:=10;
+        s[50]:=15; s[54]:=15; s[58]:=15; s[62]:=15;
+        s[51]:=21; s[54]:=21; s[59]:=21; s[63]:=21;
+    
+        k[0] := DW#16#D76AA478; k[1] := DW#16#E8C7B756; k[2] := DW#16#242070DB; k[3] := DW#16#C1BDCEEE;
+        k[4] := DW#16#F57C0FAF; k[5] := DW#16#4787C62A; k[6] := DW#16#A8304613; k[7] := DW#16#FD469501;
+        k[8] := DW#16#698098D8; k[9] := DW#16#8B44F7AF; k[10]:= DW#16#FFFF5BB1; k[11]:= DW#16#895CD7BE;
+        k[12]:= DW#16#6B901122; k[13]:= DW#16#FD987193; k[14]:= DW#16#A679438E; k[15]:= DW#16#49B40821;
+        k[16]:= DW#16#F61E2562; k[17]:= DW#16#C040B340; k[18]:= DW#16#265E5A51; k[19]:= DW#16#E9B6C7AA;
+        k[20]:= DW#16#D62F105D; k[21]:= DW#16#02441453; k[22]:= DW#16#D8A1E681; k[23]:= DW#16#E7D3FBC8;
+        k[24]:= DW#16#21E1CDE6; k[25]:= DW#16#C33707D6; k[26]:= DW#16#F4D50D87; k[27]:= DW#16#455A14ED;
+        k[28]:= DW#16#A9E3E905; k[29]:= DW#16#FCEFA3F8; k[30]:= DW#16#676F02D9; k[31]:= DW#16#8D2A4C8A;
+        k[32]:= DW#16#FFFA3942; k[33]:= DW#16#8771F681; k[34]:= DW#16#6D9D6122; k[35]:= DW#16#FDE5380C;
+        k[36]:= DW#16#A4BEEA44; k[37]:= DW#16#4BDECFA9; k[38]:= DW#16#F6BB4B60; k[39]:= DW#16#BEBFBC70;
+        k[40]:= DW#16#289B7EC6; k[41]:= DW#16#EAA127FA; k[42]:= DW#16#D4EF3085; k[43]:= DW#16#04881D05;
+        k[44]:= DW#16#D9D4D039; k[45]:= DW#16#E6DB99E5; k[46]:= DW#16#1FA27CF8; k[47]:= DW#16#C4AC5665;
+        k[48]:= DW#16#F4292244; k[49]:= DW#16#432AFF97; k[50]:= DW#16#AB9423A7; k[51]:= DW#16#FC93A039;
+        k[52]:= DW#16#655B59C3; k[53]:= DW#16#8F0CCC92; k[54]:= DW#16#FFEFF47D; k[55]:= DW#16#85845DD1;
+        k[56]:= DW#16#6FA87E4F; k[57]:= DW#16#FE2CE6E0; k[58]:= DW#16#A3014314; k[59]:= DW#16#4E0811A1;
+        k[60]:= DW#16#F7537E82; k[61]:= DW#16#BD3AF235; k[62]:= DW#16#2AD7D2BB; k[63]:= DW#16#EB86D391;
+        
+        xInit := TRUE;
+    END_IF;
+
+    BlkAny := inDataANY;    // Eingang ANY-Pointer auf Datenquelle => TEMP
+
+    IF Start AND (NOT Busy) AND (NOT Ready) THEN
+        // Initialisiere die Variablen: (lt. RFC 1321)
+        a0 := DW#16#67452301;
+        b0 := DW#16#EFCDAB89;
+        c0 := DW#16#98BADCFE;
+        d0 := DW#16#10325476;
+    
+        // ======================================================================
+        //    Vorberechnungen
+        // ======================================================================
+    
+        // wir müssen die Daten 512-Bit/64 Byte weise in unseren buf[] kopieren
+        // der letzte Block muss ein Hi-Bit angehängt werden, dann so weit erweitert dass,
+        // 64 Bit für die Blocklänge in Bits überig bleiben. Evtl. muss ein leerer
+        // Block angehängt werden      
+            
+        // für alle 512-Bit Block von message, buf
+    
+        diRestBytes := WORD_TO_DINT(pBlkAny.REP);       // REP gibt den Widerholungsfaktor an, da ANY immer BYTE ist = Anzahl Bytes
+        BlockPointer := pBlkAny.PTR;
+        BlockCount := 0;
+
+        MsgLengthBit := diRestBytes*8;
+        
+        xLastBlock := FALSE;
+        xAddHiBit := FALSE;   // Hi-Bit muss noch an MSG angehängt werden
+        xHiBitAdded := FALSE;
+        Busy := TRUE;
+
+    ELSIF NOT Start AND Busy THEN
+        Busy := FALSE;
+    ELSIF Start AND NOT oldSTART THEN   // RTrig(START)
+        Ready := FALSE;
+    ELSIF NOT Start AND Ready THEN  
+        Ready := FALSE;
+    END_IF;
+   
+    oldStart := START;
+    
+    // ======================================================================
+    //    Hauptschleife
+    // ======================================================================
+    
+    IF Busy THEN
+ 
+        REPEAT
+            BlockCount := BlockCount + 1;
+  
+            // Prüfen wieviele Bytes noch kopiert werden können
+            IF diRestBytes > 64 THEN         // kompletter 64 Byte Block
+                iBytesToCopy := 64;
+            ELSIF diRestBytes > 59 THEN      // > 59 Bytes, dann reicht Block nicht um unsere 5 Byte hinten anzuhängen 
+                iBytesToCopy := DINT_TO_INT(diRestBytes);
+                xAddHiBit := TRUE;          // Hi-Bit am Ende anfügen und Bufffer[] zuerst löschen
+            ELSE                            // Bkock ist komplett leer oder es reicht unsere 5 Byte Daten anzuhängen
+                xLastBlock := TRUE;
+                iBytesToCopy := DINT_TO_INT(diRestBytes);    // das kann minimal 0 werden! (würde aber auch funktioneren falls <0)
+                xAddHiBit := TRUE;             // Achtung: muss unbedingt hier nochmal Hi gesetzt werden, da benutzt für Buffer[]:=0
+            END_IF;
+      
+            diRestBytes := diRestBytes - INT_TO_DINT(iBytesToCopy);       // verbleibende Bytes -64  (wird minimal 0)
+          
+            IF xAddHiBit THEN       // Wenn letzter oder vorletzter Block, dann sind evtl. nicht alle 64 Bytes belegt => zuerst löschen
+                FOR J:=0 TO 15 DO
+                     buf[J] := 0;    // Buffer vorher löschen, da er nicht mehr vollständig mit Daten belegt wird
+                END_FOR;
+            END_IF;
+            
+            // Daten von Quelle die mit inDataANY spezifiziert sind nach buf[] kopieren
+            IF iBytesToCopy >0 THEN
+                pBlkAny.REP := INT_TO_WORD(iBytesToCopy);          // Wiederholungsfaktor im Quell-ANY
+                pBlkAny.PTR := BlockPointer;
+                iRET:= BLKMOV(SRCBLK := BlkAny, DSTBLK := buf); // SFC20 BLKMOV
+                BlockPointer := DINT_TO_DWORD(DWORD_TO_DINT(BlockPointer) + (iBytesToCopy*8));  // BlockPointer um 64 Byte weiter
+            END_IF;
+    
+            IF xAddHiBit AND NOT xHiBitAdded THEN
+                pB_buf[iBytesToCopy] := 1;
+                xAddHiBit := TRUE;
+                xHiBitAdded := TRUE;
+            END_IF;
+    
+            IF xLastBlock THEN
+                // MsgLengthBit in Buffer letzte 64 bit eintragen ACHTUNG little Endian (Intel Format)
+                // wir haben nur 32 Bit. Der Rest bleibt 0
+                pB_buf[63]:=pMsgLengthBit.HiHiByte;  // gedrehte ByteReihenfolge verwenden
+                pB_buf[62]:=pMsgLengthBit.HiByte;
+                pB_buf[61]:=pMsgLengthBit.LoByte;
+                pB_buf[60]:=pMsgLengthBit.LoLoByte;
+            END_IF;
+        
+        // Initialisiere den Hash-Wert für diesen Block:
+            A := a0;
+            B := b0;
+            C := c0;
+            D := d0;
+        
+        // Hauptschleife:
+        // not Operator entspricht dem Einerkomplement
+        // für alle i von 0 bis 63
+            FOR I:=0 TO 63 DO
+    
+                IF I < 16 THEN          // 0..15
+                    F := (B AND C) OR ((NOT B) AND D);
+                //    F := D XOR (B AND (C XOR D));  // Alternativ, soll schneller sein. Stimmt aber nicht, ist tats. 2-3ms langsamer
+                  //    g := I;
+                     gg :=DWORD_TO_DINT(buf[I]);
+      
+                ELSIF I < 32 THEN       // 16..31
+                     F := (B AND D) OR (C AND (NOT D));
+                  //  g := (5*I + 1) MOD 16; // MOD 16 müsste durch AND DW#16#F zu erstzen sein
+    
+                  //   F := C XOR (D AND (B XOR C));             // Alternativ, weil schneller. Auch knapp 1ms langsamer
+                     g := DWORD_TO_DINT(DINT_TO_DWORD(5*I + 1) AND DW#16#F); 
+                    gg :=DWORD_TO_DINT(buf[g]);
+    
+                ELSIF I < 48 THEN       // 32..47
+                    F := B XOR C XOR D;
+                 //   g := (3*I + 5) MOD 16;
+                    g := DWORD_TO_DINT(DINT_TO_DWORD(3*I + 5) AND DW#16#F);
+                    gg :=DWORD_TO_DINT(buf[g]);
+     
+                ELSE                    // 48..63
+                    F := C XOR (B OR (NOT D));
+                   // g := (7*I) MOD 16;
+                    g := DWORD_TO_DINT(DINT_TO_DWORD(7*I) AND DW#16#F);
+                    gg :=DWORD_TO_DINT(buf[g]);  // gg in allen ELSE-Zweigen berechnen ist schneller als 1x ausserhalb
+                END_IF;
+                
+                // die Werte für die Linksrotoation vorberechnen ist schneller als das direkt im ROL Befehl einzubinden
+                kk := gg + DWORD_TO_DINT(k[I]) + DWORD_TO_DINT(A) + DWORD_TO_DINT(F);
+                ss := s[I];  // Anzahl Bits schieben
+                
+                dwTmp := D;
+                D := C;
+                C := B;
+    
+            //  B := B + linksrotation((A + F + K[i] + buf[g]), s[i])
+     //           dwMem := ROL (IN:= DINT_TO_DWORD(DWORD_TO_DINT(A)+DWORD_TO_DINT(F)+DWORD_TO_DINT(k[I])+DWORD_TO_DINT(buf[g])), N:=s[I]);
+                dwMem := ROL (IN:= DINT_TO_DWORD(kk), N:=ss);
+     
+                B := DINT_TO_DWORD( DWORD_TO_DINT(B) + DWORD_TO_DINT(dwMem) );
+    
+                A := dwTmp;
+     
+            END_FOR;
+        
+            // Addiere den Hash-Wert des Blocks zur Summe der vorherigen Hashes:
+            a0 := DINT_TO_DWORD(DWORD_TO_DINT(a0) + DWORD_TO_DINT(A));
+            b0 := DINT_TO_DWORD(DWORD_TO_DINT(b0) + DWORD_TO_DINT(B));
+            c0 := DINT_TO_DWORD(DWORD_TO_DINT(c0) + DWORD_TO_DINT(C));
+            d0 := DINT_TO_DWORD(DWORD_TO_DINT(d0) + DWORD_TO_DINT(D));
+            
+            xPause := (BlockCount MOD cst_BlocksPerCycle) = 0 ;
+        //    xPause := FALSE;
+        UNTIL xLastBlock OR xPause END_REPEAT;
+  
+    END_IF;  // IF Busy
+
+    // ======================================================================
+    //   Rückgabewerte
+    // ======================================================================
+    IF xLastBlock THEN
+        xLastBlock := FALSE;
+        Ready := TRUE;
+        Busy := FALSE;
+        MD5_a0 := a0;
+        MD5_b0 := b0;
+        MD5_c0 := c0;
+        MD5_d0 := d0;
+    END_IF;
+
+END_FUNCTION_BLOCK
+
+
+(*
+FUNCTION m7_MD5_128Bit : VOID
+    TITLE = 'Calculates the 128Bit MD5 Fingerprint of a DataBlock'
+
+// ==============================================================================
+//  128Bit MD5 Fingerprint calculation
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 4/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '0.2'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    inDataANY : ANY;      // Data/Message to encode
+END_VAR
+
+VAR_OUTPUT
+    MD5_a0 : DWORD;
+    MD5_b0 : DWORD;
+    MD5_c0 : DWORD;
+    MD5_d0 : DWORD;
+END_VAR
+
+VAR_TEMP
+    s : ARRAY[0..63] OF INT;
+    k : ARRAY[0..63] OF DWORD;
+
+    a0, b0, c0, d0 : DWORD;
+    A,  B,  C,  D  : DWORD;
+    F              : DWORD;
+    g              : DINT;
+    
+    MsgLengthBit   : DINT;      // Länge unser Daten in Bits = Anzahl Bytes *8
+ 
+    pMsgLengthBit AT MsgLengthBit : STRUCT
+        HiHiByte : BYTE;
+        HiByte   : BYTE;
+        LoByte   : BYTE;
+        LoLoByte : BYTE;
+    END_STRUCT;
+    
+    NoOfBlocks     : DINT;
+
+    I, J : DINT;               // Schleifenvariablen
+    dwTmp : DWORD;
+    dwMem: DWORD;
+    
+    buf : ARRAY[0..15] OF DWORD;            // 512-Bit Buffer for Message
+    pB_buf AT buf : ARRAY[0..63]  OF BYTE;      // *buf[] : BYTE;
+ // pX_buf AT buf : ARRAY[0..511] OF BOOL;      // *buf[] : BOOL;
+  
+    // diesen ANY benötigen wir, damit wir eine Kopie des inDataANY anlgegen können, die wir per Pointer manipuliern  
+    SrcAny : ANY;              // ANY-Pointer auf Datenquelle
+    pSrcANY AT SrcAny : STRUCT
+       ID  : WORD;  // ID für ANY (1002 hex = es wird mit Bytes gearbeitet)
+       REP : INT;   // Wiederholungsfaktor
+       DBNo: INT;   // DB der im ANY Pointer benutzt wird ANY
+       PTR : DWORD; // Pointer Doppelwort um den Angfang des Datenbereichs und den Datentyp zu definieren (84hex = DB Datentyp)
+    END_STRUCT;
+ 
+    BlkAny : ANY;           // ANY für max 512 Bit /64 Byte aus inDataANY Speicherbereich kopieren, unsere Datenblocks
+    pBlkAny AT BlkAny : STRUCT
+       ID  : WORD;  // ID für ANY (1002 hex = es wird mit Bytes gearbeitet)
+       REP : INT;   // Wiederholungsfaktor
+       DBNo: INT;   // DB der im ANY Pointer benutzt wird ANY
+       PTR : DWORD; // Pointer Doppelwort um den Angfang des Datenbereichs und den Datentyp zu definieren (84hex = DB Datentyp)
+    END_STRUCT;
+    
+    iRestBytes  : INT;
+    iBytesToCopy : INT;
+    iRET        : INT;
+    xAddHiBit   : BOOL;
+    xHiBitAdded : BOOL;
+    xLastBlock  : BOOL;
+    
+    // Für Performancetest, das Berechnungsergebnis von g, was immer 0..15 ist in Array auslagern
+
+  //  gAry [0..15] OF INT;
+
+END_VAR
+
+BEGIN
+
+// allein die Initialisierung der beiden ARRAYs sind 1kB an Code
+// die Arrays könnte man noch in einen DB auslagern und an den FC übergeben
+
+    // ======================================================================
+    //    Initialisierungen
+    // ======================================================================
+
+    // ROL ARRAY, Anzahl der zu rotierenden Bits
+    s[0]:= 7; s[4]:= 7;  s[8]:= 7; s[12]:= 7;
+    s[1]:=12; s[5]:=12;  s[9]:=12; s[13]:=12;
+    s[2]:=17; s[6]:=17; s[10]:=17; s[14]:=17;
+    s[3]:=22; s[7]:=22; s[11]:=22; s[15]:=22;
+    
+    s[16]:= 5; s[20]:= 5; s[24]:= 5; s[28]:= 5;
+    s[17]:= 9; s[21]:= 9; s[25]:= 9; s[29]:= 9;
+    s[18]:=14; s[22]:=14; s[26]:=14; s[20]:=14;
+    s[19]:=20; s[23]:=20; s[27]:=20; s[31]:=20;
+    
+    s[32]:= 4; s[36]:= 4; s[40]:= 4; s[44]:= 4;
+    s[33]:=11; s[37]:=11; s[41]:=11; s[45]:=11;
+    s[34]:=16; s[38]:=16; s[42]:=16; s[46]:=16;
+    s[35]:=23; s[39]:=23; s[43]:=23; s[47]:=23;
+    
+    s[48]:= 6; s[52]:= 6; s[56]:= 6; s[60]:= 6;
+    s[49]:=10; s[53]:=10; s[57]:=10; s[61]:=10;
+    s[50]:=15; s[54]:=15; s[58]:=15; s[62]:=15;
+    s[51]:=21; s[54]:=21; s[59]:=21; s[63]:=21;
+
+    k[0] := DW#16#D76AA478; k[1] := DW#16#E8C7B756; k[2] := DW#16#242070DB; k[3] := DW#16#C1BDCEEE;
+    k[4] := DW#16#F57C0FAF; k[5] := DW#16#4787C62A; k[6] := DW#16#A8304613; k[7] := DW#16#FD469501;
+    k[8] := DW#16#698098D8; k[9] := DW#16#8B44F7AF; k[10]:= DW#16#FFFF5BB1; k[11]:= DW#16#895CD7BE;
+    k[12]:= DW#16#6B901122; k[13]:= DW#16#FD987193; k[14]:= DW#16#A679438E; k[15]:= DW#16#49B40821;
+    k[16]:= DW#16#F61E2562; k[17]:= DW#16#C040B340; k[18]:= DW#16#265E5A51; k[19]:= DW#16#E9B6C7AA;
+    k[20]:= DW#16#D62F105D; k[21]:= DW#16#02441453; k[22]:= DW#16#D8A1E681; k[23]:= DW#16#E7D3FBC8;
+    k[24]:= DW#16#21E1CDE6; k[25]:= DW#16#C33707D6; k[26]:= DW#16#F4D50D87; k[27]:= DW#16#455A14ED;
+    k[28]:= DW#16#A9E3E905; k[29]:= DW#16#FCEFA3F8; k[30]:= DW#16#676F02D9; k[31]:= DW#16#8D2A4C8A;
+    k[32]:= DW#16#FFFA3942; k[33]:= DW#16#8771F681; k[34]:= DW#16#6D9D6122; k[35]:= DW#16#FDE5380C;
+    k[36]:= DW#16#A4BEEA44; k[37]:= DW#16#4BDECFA9; k[38]:= DW#16#F6BB4B60; k[39]:= DW#16#BEBFBC70;
+    k[40]:= DW#16#289B7EC6; k[41]:= DW#16#EAA127FA; k[42]:= DW#16#D4EF3085; k[43]:= DW#16#04881D05;
+    k[44]:= DW#16#D9D4D039; k[45]:= DW#16#E6DB99E5; k[46]:= DW#16#1FA27CF8; k[47]:= DW#16#C4AC5665;
+    k[48]:= DW#16#F4292244; k[49]:= DW#16#432AFF97; k[50]:= DW#16#AB9423A7; k[51]:= DW#16#FC93A039;
+    k[52]:= DW#16#655B59C3; k[53]:= DW#16#8F0CCC92; k[54]:= DW#16#FFEFF47D; k[55]:= DW#16#85845DD1;
+    k[56]:= DW#16#6FA87E4F; k[57]:= DW#16#FE2CE6E0; k[58]:= DW#16#A3014314; k[59]:= DW#16#4E0811A1;
+    k[60]:= DW#16#F7537E82; k[61]:= DW#16#BD3AF235; k[62]:= DW#16#2AD7D2BB; k[63]:= DW#16#EB86D391;
+
+    // Initialisiere die Variablen: (lt. RFC 1321)
+    a0 := DW#16#67452301;
+    b0 := DW#16#EFCDAB89;
+    c0 := DW#16#98BADCFE;
+    d0 := DW#16#10325476;
+
+    // ======================================================================
+    //    Vorberechnungen
+    // ======================================================================
+
+    // wir müssen die Daten 512-Bit/64 Byte weise in unseren buf[] kopieren
+    // der letzte Block muss ein Hi-Bit angehängt werden, dann so weit erweitert dass,
+    // 64 Bit für die Blocklänge in Bits überig bleiben. Evtl. muss ein leerer
+    // Block angehängt werden      
+        
+    // für alle 512-Bit Block von message, buf
+
+    SrcAny := inDataANY;    // Eingang ANY-Pointer auf Datenquelle => TEMP
+    BlkAny := SrcANY;       // BlkAny wird dazu benutzt, die Daten 64Byte weise zu kopieren
+    iRestBytes := pSrcANY.REP;       // REP gibt den Widerholungsfaktor an, da ANY immer BYTE ist = Anzahl Bytes
+    
+    MsgLengthBit := INT_TO_DINT(iRestBytes)*8;
+    
+    xLastBlock := FALSE;
+    xAddHiBit := FALSE;   // Hi-Bit muss noch an MSG angehängt werden
+    xHiBitAdded := FALSE;
+    
+    // ======================================================================
+    //    Hauptschleife
+    // ======================================================================
+   
+    REPEAT
+        
+        // Prüfen wieviele Bytes noch kopiert werden können
+        IF iRestBytes > 64 THEN         // kompletter 64 Byte Block
+            iBytesToCopy := 64;
+        ELSIF iRestBytes > 59 THEN      // > 59 Bytes, dann reicht Block nicht um unsere 5 Byte hinten anzuhängen 
+            iBytesToCopy := iRestBytes;
+            xAddHiBit := TRUE;          // Hi-Bit am Ende anfügen und Bufffer[] zuerst löschen
+        ELSE                            // Bkock ist komplett leer oder es reicht unsere 5 Byte Daten anzuhängen
+            xLastBlock := TRUE;
+            iBytesToCopy := iRestBytes;    // das kann minimal 0 werden! (würde aber auch funktioneren falls <0)
+            xAddHiBit := TRUE;             // Achtung: muss unbedingt hier nochmal Hi gesetzt werden, da benutzt für Buffer[]:=0
+        END_IF;
+  
+        iRestBytes := iRestBytes -iBytesToCopy;       // verbleibende Bytes -64  (wird minimal 0)
+      
+        IF xAddHiBit THEN       // Wenn letzter oder vorletzter Block, dann sind evtl. nicht alle 64 Bytes belegt => zuerst löschen
+            FOR J:=0 TO 15 DO
+                 buf[J] := 0;    // Buffer vorher löschen, da er nicht mehr vollständig mit Daten belegt wird
+            END_FOR;
+        END_IF;
+        
+        // Daten von Quelle die mit inDataANY spezifiziert sind nach buf[] kopieren
+        IF iBytesToCopy >0 THEN
+            pBlkAny.REP := iBytesToCopy;          // Wiederholungsfaktor im Quell-ANY
+            iRET:= BLKMOV(SRCBLK := BlkAny, DSTBLK := buf); // SFC20 BLKMOV
+            pBlkAny.PTR := DINT_TO_DWORD(DWORD_TO_DINT(pBlkAny.PTR) + (iBytesToCopy*8));  // iBytesToCopy um 64 Byte weiter
+        END_IF;
+
+        IF xAddHiBit AND NOT xHiBitAdded THEN
+            pB_buf[iBytesToCopy] := 1;
+            xAddHiBit := TRUE;
+            xHiBitAdded := TRUE;
+        END_IF;
+
+        IF xLastBlock THEN
+            // MsgLengthBit in Buffer letzte 64 bit eintragen ACHTUNG little Endian (Intel Format)
+            // wir haben nur 32 Bit. Der Rest bleibt 0
+            pB_buf[63]:=pMsgLengthBit.HiHiByte;  // gedrehte ByteReihenfolge verwenden
+            pB_buf[62]:=pMsgLengthBit.HiByte;
+            pB_buf[61]:=pMsgLengthBit.LoByte;
+            pB_buf[60]:=pMsgLengthBit.LoLoByte;
+        END_IF;
+    
+    // Initialisiere den Hash-Wert für diesen Block:
+        A := a0;
+        B := b0;
+        C := c0;
+        D := d0;
+    
+    // Hauptschleife:
+    // not Operator entspricht dem Einerkomplement
+    // für alle i von 0 bis 63
+        FOR I:=0 TO 63 DO
+
+            IF I < 16 THEN          // 0..15
+                F := (B AND C) OR ((NOT B) AND D);
+            //  F := D XOR (B AND (C XOR D))            // Alternativ, weil schneller
+                g := I;
+  
+            ELSIF I < 32 THEN       // 16..31
+                F := (B AND D) OR (C AND (NOT D));
+                g := (5*I + 1) MOD 16; // MOD 16 müsste durch AND DW#16#F zu erstzen sein
+
+            //  F := C XOR (D AND (B XOR C))             // Alternativ, weil schneller
+            //  g := DWORD_TO_DINT(DINT_TO_DWORD(5*I + 1) AND DW#16#F); 
+
+            ELSIF I < 48 THEN       // 32..47
+                F := B XOR C XOR D;
+                g := (3*I + 5) MOD 16;
+            //  g := DWORD_TO_DINT(DINT_TO_DWORD(3*I + 5) AND DW#16#F);
+ 
+            ELSE                    // 48..63
+                F := C XOR (B OR (NOT D));
+                g := (7*I) MOD 16;
+            //  g := DWORD_TO_DINT(DINT_TO_DWORD(7*I) AND DW#16#F);
+  
+            END_IF;
+             
+            //   ERGEBNIS := ROL (IN:=BYTE#2#1101_0011, N:=5);
+
+            dwTmp := D;
+            D := C;
+            C := B;
+ 
+        //  B := B + linksrotation((A + F + K[i] + buf[g]), s[i])
+            dwMem := ROL (IN:= DINT_TO_DWORD(DWORD_TO_DINT(A)+DWORD_TO_DINT(F)+DWORD_TO_DINT(k[I])+DWORD_TO_DINT(buf[g])), N:=s[I]);
+            B := DINT_TO_DWORD( DWORD_TO_DINT(B) + DWORD_TO_DINT(dwMem) );
+            
+            A := dwTmp;
+ 
+        END_FOR;
+    
+        // Addiere den Hash-Wert des Blocks zur Summe der vorherigen Hashes:
+        a0 := DINT_TO_DWORD(DWORD_TO_DINT(a0) + DWORD_TO_DINT(A));
+        b0 := DINT_TO_DWORD(DWORD_TO_DINT(b0) + DWORD_TO_DINT(B));
+        c0 := DINT_TO_DWORD(DWORD_TO_DINT(c0) + DWORD_TO_DINT(C));
+        d0 := DINT_TO_DWORD(DWORD_TO_DINT(d0) + DWORD_TO_DINT(D));
+    
+    UNTIL xLastBlock END_REPEAT;
+
+    // ======================================================================
+    //   Rückgabewerte
+    // ======================================================================
+
+    MD5_a0 := a0;
+    MD5_b0 := b0;
+    MD5_c0 := c0;
+    MD5_d0 := d0;
+
+END_FUNCTION

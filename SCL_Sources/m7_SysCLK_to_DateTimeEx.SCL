@@ -1,0 +1,329 @@
+// ******************************************************************************
+// m7_DT_to_DateTimeEx
+// m7_SysCLK_to_DateTimeEx
+// m7_DateTimeEx_Diff
+// ******************************************************************************
+
+(*
+    This function reads the S7 300/300 System Clock and copys it to
+    the DateTimeEx Structure, which holds the SystemClock in 
+    a more detailed format for using in different situations.
+    
+    The Problem is that the S7 DateAndTime is 8 Bytes long and
+    it's not possible to see actual values on status screens.
+    Many HMI and SCADA Systens cant show directly S7_DateAndTime.
+    
+    This function isn't possible in KOP/FUP/AWL in a easy way!
+    S7 strictly do not accept a DateAndTime in an UDT as parameter of a Function.
+    
+    When using DateAndTime in an UDT and parametric FC call, Step7 forces us to
+    use some complicated Pointer handels. SCL knows this pointers and
+    can use some code structures which are not possible to type dirctly in AWL
+    See SCL generated code below!
+*)
+
+// DateDimeEx Structur auskommentiert, sons wird immer neu übersetzt und die
+// Zeitstempel des UDT passen nicht. => ständig manuelle Aktualisierung nötig
+(*
+TYPE m7_udtDateTimeEx   // UDT 462
+    AUTHOR :'S.Maag'
+    FAMILY : Maagic7
+    VERSION: 1.0
+
+    STRUCT
+    // Typbeschreibung
+       dtDateTime : DATE_AND_TIME ;    //Date and Time
+       dtDate : DATE ;    //Date, day
+       dtToD : TIME_OF_DAY ;    //Time of day
+       WeekDay : INT ;    //Day of week
+    END_STRUCT
+END_TYPE
+*)
+
+FUNCTION m7_DT_to_DateTimeEx : VOID  //FC462
+    TITLE = 'DateAndTime_to_DateTimeEx'
+
+// ==============================================================================
+// S7 DateAndTime => DateTimeEx Struktur kopieren
+// DateTimeEx enthält
+//     DATE_AND_TIME, DATE, TIME_OF_DAY, WeekDay
+// Dies vereinfacht den Umgang mit DATE_AND_TIME, da mit 
+// DATE_AND_TIME direkt oft nichts angefangen werden kann.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 18.03.2020   S.Maag      Jahr Übergabe an CreateDate war nur als 
+//                          Jahrzehnt '20' statt '2020'
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR : 'S.Maag'
+    FAMILY:   'Maagic7'    
+
+// VAR_IN_OUT
+VAR_INPUT
+    s7DateAndTime : DATE_AND_TIME;
+END_VAR
+
+VAR_OUTPUT
+  out_udtDateTime : m7_udtDateTimeEx;    
+END_VAR
+
+VAR_TEMP
+    SysDate : DATE;
+    SysToD : TIME_OF_DAY;
+    SysWeekDay : INT;
+    iYear : INT;
+    
+    SysDateTime : DATE_AND_TIME ; 
+    ptrSysDT AT SysDateTime : STRUCT 
+        Year: BYTE;
+        Month: BYTE;
+        Day: BYTE;
+        Hour: BYTE;
+        Minute : BYTE;
+        Second : BYTE;
+        ms_WeekDay : WORD;
+    END_STRUCT;
+
+END_VAR
+
+BEGIN
+
+    SysDateTime := s7DateAndTime;  // Copy Input Variable s7DateAndTime to local memory! Necessary to use Pointer operations!
+
+    iYear :=  BCD_TO_INT(ptrSysDT.Year) + 2000;
+    IF iYear > 2089 THEN            // if Year = 90..99 => 1990..1999
+         iYear := iYear -100;
+    END_IF; 
+
+    // because it's CPU's SysDate the BCD are correct, so we don't have to check for valid BCDs
+    SysDate := m7_CreateDate(iYear    := iYear                       // IN: INT
+                            ,iMonth   := BCD_TO_INT(ptrSysDT.Month)  // IN: INT
+                            ,iDay     := BCD_TO_INT(ptrSysDT.DAY)    // IN: INT
+                            ); // DATE
+              
+    // SysTOD := m7_DT_TOD(IN := SysDateTime); // TIME_OF_DAY
+    SysTOD := DINT_TO_TOD( (BCD_TO_DINT(ptrSysDT.Hour)*3600 + BCD_TO_DINT(ptrSysDT.Minute)*60 + BCD_TO_DINT(ptrSysDT.Second))*1000 + BCD_TO_DINT(SHR(IN:=ptrSysDT.ms_Weekday, N:=4)) );       
+    SysWeekDay := WORD_TO_INT(ptrSysDT.ms_WeekDay AND W#16#F);
+  
+    // Copy the temporary values to the UDT DateTimeEx
+    out_udtDateTime.dtDateTime := SysDateTime;
+    out_udtDateTime.dtDate := SysDate;
+    out_udtDateTime.dtToD := SysToD;
+    out_udtDateTime.WeekDay := SysWeekDay;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_SysCLK_to_DateTimeEx : VOID  //FC462
+    TITLE = 'SysClock_to_DateTimeEx'
+
+// ==============================================================================
+// S7 Systemzeit (ReadCLK) => DateTimeEx Struktur kopieren
+// DateTimeEx enthält
+//     DATE_AND_TIME, DATE, TIME_OF_DAY, WeekDay
+// Dies vereinfacht den Umgang mit DATE_AND_TIME, da mit 
+// DATE_AND_TIME direkt oft nichts angefangen werden kann.
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 18.03.2020   S.Maag      Jahr Übergabe an CreateDate war nur als 
+//                          Jahrzehnt '20' statt '2020'
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR : 'S.Maag'
+    FAMILY:   'Maagic7'    
+
+// VAR_IN_OUT
+VAR_OUTPUT
+  out_udtDateTime : m7_udtDateTimeEx;    
+END_VAR
+
+VAR_TEMP
+    iRET : INT ;    
+    SysDate : DATE;
+    SysToD : TIME_OF_DAY;
+    SysWeekDay : INT;
+    iYear : INT;
+    
+    SysDateTime : DATE_AND_TIME ; 
+    ptrSysDT AT SysDateTime : STRUCT 
+        Year: BYTE;
+        Month: BYTE;
+        Day: BYTE;
+        Hour: BYTE;
+        Minute : BYTE;
+        Second : BYTE;
+        ms_WeekDay : WORD;
+    END_STRUCT;
+
+END_VAR
+
+BEGIN
+
+    iRET := "READ_CLK" (CDT := SysDateTime);  // Read System Clock
+    
+    iYear :=  BCD_TO_INT(ptrSysDT.Year) + 2000;
+    IF iYear > 2089 THEN            // if Year = 90..99 => 1990..1999
+         iYear := iYear -100;
+    END_IF; 
+        
+    // because it's CPU's SysDate the BCD are correct, so we don't have to check for valid BCDs
+    SysDate := m7_CreateDate(iYear    := iYear                       // IN: INT
+                            ,iMonth   := BCD_TO_INT(ptrSysDT.Month)  // IN: INT
+                            ,iDay     := BCD_TO_INT(ptrSysDT.DAY)    // IN: INT
+                            ); // DATE
+              
+   
+    // SysTOD := m7_DT_TOD(IN := SysDateTime); // TIME_OF_DAY
+    SysTOD := DINT_TO_TOD( (BCD_TO_DINT(ptrSysDT.Hour)*3600 + BCD_TO_DINT(ptrSysDT.Minute)*60 + BCD_TO_DINT(ptrSysDT.Second))*1000 + BCD_TO_DINT(SHR(IN:=ptrSysDT.ms_Weekday, N:=4)) );       
+    SysWeekDay := WORD_TO_INT(ptrSysDT.ms_WeekDay AND W#16#F);
+  
+    // Copy the temporary values to the UDT DateTimeEx
+    out_udtDateTime.dtDateTime := SysDateTime;
+    out_udtDateTime.dtDate := SysDate;
+    out_udtDateTime.dtToD := SysToD;
+    out_udtDateTime.WeekDay := SysWeekDay;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_DateTimeEx_Diff : VOID
+    TITLE = 'm7_DateTimeEx_Diff'
+// ==============================================================================
+//
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+ VERSION : '1.0'
+ AUTHOR : 'S.Maag'
+ FAMILY:   'Maagic7'    
+
+VAR_INPUT
+      udtDTex_START : m7_udtDateTimeEx;   // START Date/Time as udtDateTimeEx
+      udtDTex_END :  m7_udtDateTimeEx;    // START Date/Time as udtDateTimeEx
+END_VAR
+
+VAR_OUTPUT
+    hh : DINT;
+    mm : DINT;
+    ss : DINT;
+    hh_mm : DINT;
+    mm_ss: DINT;
+END_VAR
+
+VAR_TEMP
+    h_diffDays: DINT;
+    sec_TimeDiff: DINT; 
+    tmp : DINT;
+    // temporäre Variablen
+
+END_VAR
+    
+    h_diffDays := (DATE_TO_DINT(udtDTex_END.dtDate) - DATE_TO_DINT(udtDTex_START.dtDate)) * 24;
+    sec_TimeDiff :=(TOD_TO_DINT(udtDTex_END.dtToD) - TOD_TO_DINT(udtDTex_START.dtToD)) /1000;
+
+    tmp := sec_TimeDiff / 3600;   // h
+    sec_TimeDiff := sec_TimeDiff MOD 3600;  // Rest sec
+
+    hh := h_diffDays + tmp;   // tmp ist negativ, wenn kein kompletter Tag
+        
+    IF sec_TimeDiff < 0 THEN   // Wenn Rest Sekunden <0, dann müssen hh & mm jeweils um 1 korrigert werden
+        hh := hh -1; 
+        mm := (sec_TimeDiff / 60) +60;  // Minuten 'Unterlauf' korriegeren, eigentlich 60-ABS(REST)
+        tmp:= sec_TimeDiff MOD 60;
+        IF tmp <> 0 THEN
+            mm := mm -1;   // wenn noch Restsekunden (negative) dann 1 Minute weniger
+        END_IF;
+        ss := tmp + 60; // Sekunden 'Unterlauf' korriegeren, eigentlich 60-ABS(REST)
+    ELSE
+        mm := sec_TimeDiff / 60;
+        ss := sec_TimeDiff MOD 60;
+    END_IF;   
+     
+    hh_mm := hh * 100 + mm;
+    mm_ss := (hh*60 + mm)*100 +ss; 
+    
+   // m7d_DateTimeEx_Diff := TRUE;
+END_FUNCTION
+
+
+FUNCTION m7_MinAbsDiff_DateTimeEx : VOID
+    TITLE = 'minimal Difference of Date&Time'
+// ==============================================================================
+//
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 05/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//
+// ------------------------------------------------------------------------------
+
+ VERSION : '1.0'
+ AUTHOR : 'S.Maag'
+ FAMILY:   'Maagic7'    
+
+VAR_INPUT
+      udtDTex_START : m7_udtDateTimeEx;   // START Date/Time as udtDateTimeEx
+      udtDTex_END :  m7_udtDateTimeEx;    // START Date/Time as udtDateTimeEx
+      dMinDiff_s : DINT;                  // Minmum difference in seconds
+      d_DSP_Limit_s : DINT;               // Limits the output dSecDiff to this max. value 
+END_VAR
+
+VAR_OUTPUT
+    dSecDiff : DINT; // Time difference in seconds
+END_VAR
+
+VAR_TEMP
+    s_diffDays : DINT;   // Seconds from day difference; 
+    s_diffTOD : DINT;    // Difference in seconds from TimeOfDay 
+    s_Diff : DINT;
+END_VAR
+
+BEGIN
+    
+    s_diffDays := ABS((DATE_TO_DINT(udtDTex_END.dtDate) - DATE_TO_DINT(udtDTex_START.dtDate)) * 86400);
+    s_diffTOD :=(TOD_TO_DINT(udtDTex_END.dtToD) - TOD_TO_DINT(udtDTex_START.dtToD)) /1000;
+
+    s_Diff := s_diffDays + s_diffTOD;
+    
+    IF s_Diff < d_DSP_Limit_s THEN
+       dSecDiff := s_Diff;
+    ELSE
+       dSecDiff := d_DSP_Limit_s;
+    END_IF;
+
+    OK := (dMinDiff_s >= s_Diff);
+         
+END_FUNCTION
+

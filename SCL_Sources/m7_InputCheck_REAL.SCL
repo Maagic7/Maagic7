@@ -1,0 +1,149 @@
+(******************************************************************************
+    Funktionen zur Plausiblitätsprüfung von auf-/absteigenden Werten
+    wie sie z.B. für Füllstände oder Temperaturschwellen benötigt werden
+******************************************************************************)
+
+
+FUNCTION_BLOCK "m7_InputCheck4xREAL"
+    TITLE ='4 Schwellen prüfen: auf- oder absteigend'
+
+// Plausiblitätsprüfung von auf- oder absteigenden Grenzwerten. 
+// z.B. Füllstandsschwellen von Behältern. (min darf nicht > max sein)
+// [IN]
+// cfg_Limit_ON : FALSE : keine Begrenzung der Eingabewerte
+//                TRUE  : Begrenzung der Eingabewerte Fehleingaben 
+//                        werden nicht zugelassen.
+//
+//                Dieser Eingang kann dazu verwendet werden, die 
+//                Eingabebegrenzungen für den Service aufzuheben.         
+//
+// cfg_ASC_DESC : FALSE : aufsteigen MinMin <= S1 <= S2 <= S3 <= S4 <= MaxMax
+//                TRUE  : absteigend MaxMax >= S1 >= S2 >= S3 >= S4 >= MinMin
+//
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 03/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME      DESCRIPTION
+// ------------------------------------------------------------------------------
+// 26.03.2020   S.Maag    alte nicht korrekt funktionierenden FC in AWL
+//                        ersetzt durch FB
+// --------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  cfg_Limit_ON : BOOL; // Schaltet die Begrenzung Ein, sonst nur Anzeige, wenn Schwelle inkonsistent
+  cfg_ASC_DESC : BOOL; // FALSE: 'ASC' aufsteigende Werte S2>S1 / TRUE: 'DESC' absteigende Werte S2<S1
+  rMaxMax  : REAL ;    // Absolutes Maximum für die Eingabe
+  rMinMin  : REAL ;    // Absolutes Minimum für die Eingabe
+END_VAR
+
+VAR_OUTPUT
+  FLAGs_Err : BYTE ;  // Bit0=Error_S1; Bit1=Error_S2, ...  
+END_VAR
+
+VAR_IN_OUT
+  ioS1 : REAL;    
+  ioS2 : REAL;
+  ioS3 : REAL;
+  ioS4 : REAL;
+END_VAR
+
+VAR_TEMP
+    tmpS : ARRAY[0..5] OF REAL;
+    tmpMin : REAL;
+    tmpMax : REAL;
+    I : DINT;
+    cmdCALC : BOOL;
+    
+    // because Step7-Classic doesn't support BYTE Structurers
+    // we have to use a WORD with a BIT VIEW 
+    wERR : WORD;
+    // Bit view on wERR
+    xERR AT wERR : STRUCT
+      S : ARRAY[1..16] OF BOOL;    
+    END_STRUCT;
+    // Byte view on wERR
+    byERR AT wERR :STRUCT
+        hiByte : BYTE;
+        loByte : BYTE;
+    END_STRUCT;
+    
+END_VAR
+
+VAR
+   memS : ARRAY[1..4] OF REAL;
+   memLimit : BOOL;
+END_VAR
+
+BEGIN
+    
+    tmpS[1] := ioS1;  // io Werte in Array übertragen
+    tmpS[2] := ioS2;
+    tmpS[3] := ioS3;
+    tmpS[4] := ioS4;
+
+    // nun noch Grenzen Min & Max in Array eintragen
+    IF cfg_ASC_DESC THEN
+        // bei absteigend muss das Maximum oben sein, das Minimum unten
+        tmpS[0] := rMaxMax;
+        tmpS[5] := rMinMin;
+    ELSE
+        // bei aufsteigend muss das Minimum oben sein, das Maximum unten
+        tmpS[0] := rMinMin;
+        tmpS[5] := rMaxMax;
+    END_IF;
+
+    // Berechnung muss für alle Werte durchgeführt werden, wenn 
+    // Begrenzung eingeschaltet wird (d.h. der Servicebetrieb aus)
+    // IF RTrig(cfg_Limit_ON)
+    cmdCALC := (cfg_Limit_ON AND NOT memLimit);
+    memLimit := cfg_Limit_ON;   // Flankenhilfsmerker
+
+    wERR := W#160;   // Error FLAGs löschen
+    
+    FOR I := 1 TO 4 DO  // für ioS1..ioS4
+
+        IF cfg_ASC_DESC THEN    
+        // absteigend
+            tmpMax:=tmpS[I-1];  // bei absteigend: Max = vorheriger_Eintrag
+            tmpMin:= SEL (G:=cmdCalc OR NOT cfg_Limit_ON, IN0:=tmpS[I+1], IN1:= rMinMin);
+            // wenn Limit_OFF oder komplette Neuberechnung, dann ist die untere Grenze rMinMin
+        ELSE                    
+        // aufsteigend
+            tmpMax:= SEL (G:=cmdCalc OR NOT cfg_Limit_ON, IN0:=tmpS[I+1], IN1:= rMaxMax);
+            tmpMin:=tmpS[I-1];  // bei aufsteigend Min = vorheriger_Eintrag
+           // wenn Limit_OFF oder komplette Neuberechnung, dann ist die obere Grenze rMaxMax
+        END_IF;
+    
+        IF cmdCALC OR memS[I]<>tmpS[I] THEN   // wenn Neuberechung oder Wert ioS[I] wurde am HMI geändert
+            IF cfg_Limit_ON THEN
+                tmpS[I]:=LIMIT (MN:=tmpMin, IN:=tmpS[I], MX:=tmpMax);  // nur wenn Begrenzung aktiv
+            END_IF;
+            memS[I] := tmpS[I];  // akt. Wert als neuen speichern! Muss unbedingt nach der Limittierung erfolgen!!
+        END_IF;
+        
+        IF NOT cfg_Limit_ON THEN  // Fehlerauswertung = TRUE, wenn Wert ausserhalb des Bereichs
+            xERR.S[I] := (tmpS[I]<tmpMin) OR (tmpS[I]>tmpMax);
+        END_IF;
+    
+    END_FOR;
+
+    IF cfg_Limit_ON THEN
+        // wenn Begrenzung aktiv, dann begrenzte tmpS[] an IOs zurückschreiben
+        ioS1 := tmpS[1]; 
+        ioS2 := tmpS[2];
+        ioS3 := tmpS[3];
+        ioS4 := tmpS[4];
+    END_IF;
+
+    FLAGs_Err := byERR.HiByte; // Byte mit ErrorFlags S1..S4 zurückgeben
+
+END_FUNCTION_BLOCK
+
+

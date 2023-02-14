@@ -1,0 +1,312 @@
+
+// ******************************************************************************
+//  4x Multiplexer FUNCTIONS
+//
+//  FUNCTION m7_MUXx4xINT  : INT    // FC 114
+//  FUNCTION m7_MUXx4xDINT : DINT   // FC 124
+//  FUNCTION m7_MUXx4xREAL : DINT   // FC 134
+//  FUNCTION m7_MUXx4xTIME : DINT   // FC 144
+//
+// ******************************************************************************
+
+FUNCTION m7_MUXx4xINT : INT
+    TITLE = '4-fach INT Multiplexer'
+
+// ==============================================================================
+// 4x Multiplexer FOR INT with ENABLE, Priortoy S1,S2,S3,S4
+// Returns No fo active Channel in DSP_CHANNEL
+// ENO := CHANNEL <> 0; // Multiplexer activated!
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 8/2008
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// 29.01.2013   S.Maag      Anzeige aktiver Kanal (DSP_CHANNEL)
+// 24.04.2009   S.Maag      EN0 := Signal Wert selektiert 
+//                                (S1 | S2 | S3)  AND ENABLE
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  S1 : BOOL ;    // Signal Channel 1
+  S2 : BOOL ;    // Signal Channel 2
+  S3 : BOOL ;    // Signal Channel 3
+  S4 : BOOL ;    // Signal Channel 4
+  ENABLE : BOOL ;   // Enable Signal 
+  INT1 : INT ;    // Value Channel 1
+  INT2 : INT ;    // Value Channel 2
+  INT3 : INT ;    // Value Channel 3
+  INT4 : INT ;    // Value Channel 4
+END_VAR
+
+VAR_OUTPUT
+  DSP_CHANNEL : INT ;    //Displays the No of activated channel
+END_VAR
+
+VAR_TEMP
+    tmpRET : INT;
+    tmpCH : INT;
+END_VAR
+
+BEGIN
+
+    tmpRET := 0;
+    tmpCH := 0;
+
+    IF ENABLE THEN
+        IF S1 THEN
+            tmpRET := INT1;
+            tmpCH := 1;
+        ELSIF S2 THEN
+            tmpRET := INT2;
+            tmpCH := 2;
+        ELSIF S3 THEN
+            tmpRET := INT3;
+            tmpCH := 3;
+        ELSIF S4 THEN
+            tmpRET := INT4;
+            tmpCH := 4;
+        END_IF; 
+    END_IF;
+
+    OK := (tmpCH <> 0);  // ENO = TRUE If active Channel
+    DSP_CHANNEL := tmpCH;   // Display no of active Channel
+    m7_MUXx4xINT := tmpRET;    // Returns the selected value
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_MUXx4xDINT : DINT
+    TITLE = '4-fach DINT Multiplexer'
+// ==============================================================================
+// 4x Multiplexer FOR DINT with ENABLE, Priortoy S1,S2,S3,S4
+// Returns No fo active Channel in DSP_CHANNEL
+// ENO := CHANNEL <> 0; // Multiplexer activated!
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 8/2008
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// 29.01.2013   S.Maag      Anzeige aktiver Kanal (DSP_CHANNEL)
+// 24.04.2009   S.Maag      EN0 := Signal Wert selektiert 
+//                                (S1 | S2 | S3)  AND ENABLE
+// 25.08.2008   S.Maag      enstanden aus MUXx3xINT
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  S1 : BOOL ;    // Signal Channel 1
+  S2 : BOOL ;    // Signal Channel 2
+  S3 : BOOL ;    // Signal Channel 3
+  S4 : BOOL ;    // Signal Channel 4
+  ENABLE : BOOL ;   // Enable Signal 
+  DINT1 : DINT ;    // Value Channel 1
+  DINT2 : DINT ;    // Value Channel 2
+  DINT3 : DINT ;    // Value Channel 3
+  DINT4 : DINT ;    // Value Channel 4
+END_VAR
+
+VAR_OUTPUT
+  DSP_CHANNEL : INT ;    //Displays the No of activated channel
+END_VAR
+
+VAR_TEMP
+    tmpRET : DINT;
+    tmpCH : INT;
+END_VAR
+
+BEGIN
+
+    tmpRET := 0;
+    tmpCH := 0;
+
+    IF ENABLE THEN
+        IF S1 THEN
+            tmpRET := DINT1;
+            tmpCH := 1;
+        ELSIF S2 THEN
+            tmpRET := DINT2;
+            tmpCH := 2;
+        ELSIF S3 THEN
+            tmpRET := DINT3;
+            tmpCH := 3;
+        ELSIF S4 THEN
+            tmpRET := DINT4;
+            tmpCH := 4;
+        END_IF; 
+    END_IF;
+
+    OK := (tmpCH <> 0);  // ENO = TRUE If active Channel
+    DSP_CHANNEL := tmpCH;   // Display no of active Channel
+    m7_MUXx4xDINT := tmpRET;    // Returns the selected value
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_MUXx4xREAL : REAL
+    TITLE = '4-fach REAL Multiplexer'
+
+// ==============================================================================
+// 4x Multiplexer FOR REAL with ENABLE, Priortoy S1,S2,S3,S4
+// Returns No fo active Channel in DSP_CHANNEL
+// ENO := CHANNEL <> 0; // Multiplexer activated!
+// ==============================================================================
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 8/2008
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// 29.01.2013   S.Maag      Anzeige aktiver Kanal (DSP_CHANNEL)
+// 24.04.2009   S.Maag      EN0 := Signal Wert selektiert 
+//                                (S1 | S2 | S3)  AND ENABLE
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  S1 : BOOL ;    // Signal Channel 1
+  S2 : BOOL ;    // Signal Channel 2
+  S3 : BOOL ;    // Signal Channel 3
+  S4 : BOOL ;    // Signal Channel 4
+  ENABLE : BOOL ;   // Enable Signal 
+  REAL1 : REAL ;    // Value Channel 1
+  REAL2 : REAL ;    // Value Channel 2
+  REAL3 : REAL ;    // Value Channel 3
+  REAL4 : REAL ;    // Value Channel 4
+END_VAR
+
+VAR_OUTPUT
+  DSP_CHANNEL : INT ;    //Displays the No of activated channel
+END_VAR
+
+VAR_TEMP
+    tmpRET : REAL;
+    tmpCH : INT;
+END_VAR
+
+BEGIN
+
+    tmpRET := 0;
+    tmpCH := 0;
+
+    IF ENABLE THEN
+        IF S1 THEN
+            tmpRET := REAL1;
+            tmpCH := 1;
+        ELSIF S2 THEN
+            tmpRET := REAL2;
+            tmpCH := 2;
+        ELSIF S3 THEN
+            tmpRET := REAL3;
+            tmpCH := 3;
+        ELSIF S4 THEN
+            tmpRET := REAL4;
+            tmpCH := 4;
+        END_IF; 
+    END_IF;
+
+    OK := (tmpCH <> 0);  // ENO = TRUE If active Channel
+    DSP_CHANNEL := tmpCH;   // Display no of active Channel
+    m7_MUXx4xREAL := tmpRET;    // Returns the selected value
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_MUXx4xTIME : TIME
+    TITLE = '4-fach TIME Multiplexer'
+
+// ==============================================================================
+// 4x Multiplexer FOR TIME with ENABLE, Priortoy S1,S2,S3,S4
+// Returns No fo active Channel in DSP_CHANNEL
+// ENO := CHANNEL <> 0; // Multiplexer activated!
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 8/2008
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+// 28.07.2017   S.Maag      Converted the AWL Version to SCL
+// 29.01.2013   S.Maag      Anzeige aktiver Kanal (DSP_CHANNEL)
+// 24.04.2009   S.Maag      EN0 := Signal Wert selektiert 
+//                                (S1 | S2 | S3)  AND ENABLE
+// ------------------------------------------------------------------------------
+ 
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+
+VAR_INPUT
+  S1 : BOOL ;    // Signal Channel 1
+  S2 : BOOL ;    // Signal Channel 2
+  S3 : BOOL ;    // Signal Channel 3
+  S4 : BOOL ;    // Signal Channel 4
+  ENABLE : BOOL ;   // Enable Signal 
+  TIME1 : TIME ;    // Value Channel 1
+  TIME2 : TIME ;    // Value Channel 2
+  TIME3 : TIME ;    // Value Channel 3
+  TIME4 : TIME ;    // Value Channel 4
+END_VAR
+
+VAR_OUTPUT
+  DSP_CHANNEL : INT ;    //Displays the No of activated channel
+END_VAR
+
+VAR_TEMP
+    tmpRET : TIME;
+    tmpCH : INT;
+END_VAR
+
+BEGIN
+
+    tmpRET := T#0ms;
+    tmpCH := 0;
+
+    IF ENABLE THEN
+        IF S1 THEN
+            tmpRET := TIME1;
+            tmpCH := 1;
+        ELSIF S2 THEN
+            tmpRET := TIME2;
+            tmpCH := 2;
+        ELSIF S3 THEN
+            tmpRET := TIME3;
+            tmpCH := 3;
+        ELSIF S4 THEN
+            tmpRET := TIME4;
+            tmpCH := 4;
+        END_IF; 
+    END_IF;
+    
+    OK := (tmpCH <> 0);  // ENO = TRUE If active Channel
+    DSP_CHANNEL := tmpCH;   // Display no of active Channel
+    m7_MUXx4xTIME := tmpRET;    // Returns the selected value
+END_FUNCTION
+

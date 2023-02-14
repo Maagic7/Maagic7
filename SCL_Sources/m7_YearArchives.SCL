@@ -1,0 +1,633 @@
+// ******************************************************************************
+//   Year archive functions for INT, DINT, REAL
+//   archive daily values [1..366], monthly values [1..12]
+//   and a YearValue
+//
+//   TYPE "m7_udtYearArchive_INT"   // UDT 350
+//   TYPE "m7_udtYearArchive_DINT"  // UDT 351
+//   TYPE "m7_udtYearArchive_REAL"  // UDT 352
+//
+//   FUNCTION m7_YearArchive_INT  : VOID    // FC 350
+//   FUNCTION m7_YearArchive_DINT : VOID    // FC 351
+//   FUNCTION m7_YearArchive_REAL : VOID    // FC 352
+// ******************************************************************************
+
+// day[]   : contains the daily value
+// month[] : contains the monthly value depending on the archiving mode
+//           it's the SUM{} of all days in the month (for daily consumption values)
+//           or the last taken value                 (fpr total counter readings)
+// ValYear : Value of the year depending on the archiving moce
+//           SUM{} for daily consumption
+//           last taken value (31.12. 24:00) for total counter readings
+// Year    : The year of the archive
+// Status  : a status value for futuer use
+// MD5     : MD5 checksums for future use
+
+
+
+TYPE "m7_udtYearArchive_INT"  // UDT 350
+    AUTHOR : 'S.Maag'
+    FAMILY : Maagic7
+    VERSION : 0.1
+
+    STRUCT     
+        month : ARRAY  [1 .. 12 ] OF DINT;  // month must be DINT because it may contain SUM{AllDaysPerMonth}  
+        day   : ARRAY  [1 .. 366 ] OF INT;  // daily buffer   
+        oddParity : ARRAY [1..366] OF BOOL; // odd Parity Bits DayValues46 Byte
+        ValYear : DINT;     // Sum of the year or last value in the year
+        Year    : INT;      // No of the year '2019'
+        LastDay : INT;      // No of last archived DayOfYear
+        Status  : INT;      // 0: Archive not started/empty; 1:Archive in progress; 2: Archive ready
+        DeviceID  : DINT;   // Device ID of the meter
+        TimeStampStart : m7_udtDateTimeEx; // Timestamp Archive started
+        TimeStampWrite : m7_udtDateTimeEx; // Timestamp last archived value
+    END_STRUCT ;    
+END_TYPE
+
+TYPE "m7_udtYearArchive_DINT"  // UDT 351
+    AUTHOR : 'S.Maag'
+    FAMILY : Maagic7
+    VERSION : 0.1
+
+    STRUCT     
+        month : ARRAY  [1 .. 12 ] OF DINT;  // daily buffer
+        day   : ARRAY  [1 .. 366 ] OF DINT;    
+        oddParity : ARRAY [1..366] OF BOOL;  // odd Parity Bits DayValues46 Byte
+        ValYear : DINT;     // Sum of the year or last value in the year
+        Year    : INT;      // No of the year '2019'
+        LastDay : INT;      // No of last archived DayOfYear
+        Status  : INT;      // 0: Archive not started/empty; 1:Archive in progress; 2: Archive ready
+        DeviceID  : DINT;   // Device ID of the meter
+        TimeStampStart : m7_udtDateTimeEx; // Timestamp Archive started
+        TimeStampWrite : m7_udtDateTimeEx; // Timestamp last archived value
+    END_STRUCT ;    
+END_TYPE
+
+TYPE "m7_udtYearArchive_REAL"  // UDT 352
+    AUTHOR : 'S.Maag'
+    FAMILY : Maagic7
+    VERSION : 0.1
+
+    STRUCT     
+        month : ARRAY  [1 .. 12 ] OF REAL;    
+        day   : ARRAY  [1 .. 366 ] OF REAL;  // daily buffer    
+        oddParity : ARRAY [1..366] OF BOOL;  // odd Parity Bits DayValues46 Byte
+        ValYear : REAL;    // Sum of the year or last value in the year
+        Year    : INT;     // No of the year '2019'
+        LastDay : INT;     // No of last archived DayOfYear
+        Status  : INT;     // 0: Archive not started/empty; 1:Archive in progress; 2: Archive ready
+        DeviceID  : DINT;   // Device ID of the meter
+        TimeStampStart : m7_udtDateTimeEx; // Timestamp Archive started
+        TimeStampWrite : m7_udtDateTimeEx; // Timestamp last archived value
+    END_STRUCT ;    
+END_TYPE
+
+// ******************************************************************************
+
+FUNCTION m7_YearArchive_INT : VOID    // FC 350
+    TITLE = 'Year Archive: Month/Day INT'
+
+// ==============================================================================
+//   Year archive functions for REAL
+//   archives daily values [1..366], monthly values [1..12]
+//   and a YearValue.
+// ==============================================================================
+// 
+// cfgSUM : FALSE: the month[] values and the year value is the last token value
+//                 use this for daily total counter readings (like total kWh) 
+//
+//          TRUE : the month[] values and the year value is the actual sum
+//                 of all the daily values
+//                 use this for daily consumption reads (like kWh per day)
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    xVALID : BOOL;                     // If NOT VALID = FALSE THEN 0 is archived as day value with wrong parity 
+    iValue : INT;                      // The value to archive
+    dDeviceID    : DINT;               // Device ID of the meter
+    SysClkEvents : BYTE ;              // System Clock Events
+    inPrevDateInfo : m7_udtDateInfo;   // Detailed DateInfo of previous day (Yesterday)
+    cfgSUM : BOOL;                     // configuration 1: month=SUM{days}; 0: month='last taken value'
+END_VAR
+
+// weil bei einem SystemClockEvent, bereits ein neuer Tag 00:00Uhr angebrochen ist,
+// wir aber die daten den letzten Tages ablesen/speichern müssen, benötigen wir
+// die Infos des gerade beendeten Tages
+
+VAR_IN_OUT
+    ioBuffer : m7_udtYearArchive_INT;
+END_VAR
+
+VAR_OUTPUT
+
+END_VAR
+
+VAR_TEMP
+    wSysCLKevt : WORD;
+    SysCLK AT wSysCLKevt : STRUCT
+        hiByte  : BYTE;  
+        evtSEC  : BOOL ;    
+        evtMIN  : BOOL ;    
+        evtHOUR : BOOL ;    
+        evtDAY  : BOOL ;    
+        evtWEEK : BOOL ;    
+        evtMONTH: BOOL ;    
+        evtYEAR : BOOL ;    
+        evtReserve : BOOL ; 
+    END_STRUCT;
+   
+    tmpSUM : REAL;
+    
+    tmpDTx : m7_udtDateTimeEx;
+    
+    BitCount : INT;
+    cmdSetStartTime : BOOL;
+    oddParityBit     : BOOL;
+END_VAR
+
+CONST
+    cst_Archive_Empty      := 0;  // Archive is empty, new archive
+    cst_Archive_InProgress := 1;  // Archive is in progress
+    cst_Archive_Ready      := 2;  // Archive is ready/full (Dec/31)
+END_CONST
+
+
+BEGIN
+
+    wSysCLKevt := BYTE_TO_WORD(SysClkEvents);
+
+    IF wSysCLKevt <> 0 THEN  // Anything to do? 0 means no acitve EVENT
+
+        cmdSetStartTime := FALSE;
+        IF ioBuffer.Status = cst_Archive_Empty THEN
+            ioBuffer.Status := cst_Archive_InProgress;  // Set archive status to 'in progress'
+            ioBuffer.Year := inPrevDateInfo.Year;       // Set year at archive start
+            ioBuffer.DeviceID := dDeviceID;             // Device ID of the meter
+            cmdSetStartTime := TRUE;                    // command for updating archive SartTime   
+        END_IF;
+        
+        IF ioBuffer.Status = cst_Archive_InProgress THEN
+            
+            oddParityBit := m7b_GetParity_DWORD( dwVAL := WORD_TO_DWORD(INT_TO_WORD(iValue)) 
+                                         ,cfg_Even_Odd := TRUE  
+                                         ,iBitCount    := BitCount ) ; // OUT: iBitCount
+                          
+            
+        // ----------------------------------------------------------------------
+        //  Every year : the event is triggered at midnight Dec.31=>Jan.01 
+        //  at this time inPrevDateInfo contains Dez.31 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtYEAR THEN 
+                // at end of the year, write the year of the buffer
+              //  ioBuffer.Year := inPrevDateInfo.Year;  // now at archive start!!!
+                ioBuffer.Status := cst_Archive_Ready;  // mark archive as ready/full
+     
+                IF NOT inPrevDateInfo.IsLeapYear THEN
+                    ioBuffer.day[366] :=0;  // clear the day[366] if it's a normal year  
+                END_IF;    
+    
+            END_IF;
+      
+        // ----------------------------------------------------------------------
+        //    Every month : the event is triggerd at midnight LastDayOfMonth
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtMONTH THEN 
+                ;  // at the moment nothing to do
+            END_IF;
+    
+        // ----------------------------------------------------------------------
+        //    Every day : the event is triggerd at midnight (12:00pm, 24:00) 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtDAY THEN 
+                
+                IF xVALID THEN
+                    ioBuffer.day[inPrevDateInfo.DayOfYear] := iValue;
+                    ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := oddParityBit;
+                    
+                    IF cfgSUM THEN   // configuration Month and Year values ar SUM{days} 
+        
+                        // if we take the SUM{}, we have to clear the Buffer value
+                        // for Month each 1. and the YearVal on Jan.01
+           
+                        IF inPrevDateInfo.Day = 1 THEN      // If 1. DayOfMonth => ClearBuffer
+                            ioBuffer.month[inPrevDateInfo.Month] := 0;  // clear the month value
+          
+                            IF inPrevDateInfo.Month = 1 THEN     // If 1.January
+                                // Clear buffer on Jan.1
+                                ioBuffer.ValYear := 0;
+                                ioBuffer.Year := inPrevDateInfo.Year;  
+                           END_IF;
+                        END_IF;
+                       
+                        // SUM{} in Buffer; (if it's a daily consumption)
+                        ioBuffer.month[inPrevDateInfo.Month]  := ioBuffer.month[inPrevDateInfo.Month] + INT_TO_DINT(iValue);
+                        ioBuffer.ValYear := ioBuffer.ValYear + INT_TO_DINT(iValue);
+                   
+                    ELSE  // Value for Month and Year is last taken value (if it's a total counter reading)
+                        ioBuffer.month[inPrevDateInfo.Month]  := INT_TO_DINT(iValue);
+                        ioBuffer.ValYear := INT_TO_DINT(iValue);
+                    END_IF;
+                ELSE
+                    ioBuffer.day[inPrevDateInfo.DayOfYear] := iValue;
+                    ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := FALSE;
+                END_IF;
+                
+                ioBuffer.LastDay := inPrevDateInfo.DayOfYear;  // save No of last archived DayOfYear
+                
+                // Write the TimeStamp as m7_udtDateTimeEx Structure, Maagic7.FC462
+                // a direct write to ioBuffer.TimeStamp is not possible, so we copy the DateTimeEx Structure
+                // first to a tmp VAR 
+                m7_SysCLK_to_DateTimeEx(out_udtDateTime := tmpDTx);
+                ioBuffer.TimeStampWrite := tmpDTx;
+                
+                IF cmdSetStartTime THEN
+                    ioBuffer.TimeStampStart := tmpDTx;
+                END_IF;
+                
+            END_IF;
+        END_IF;
+    END_IF;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_YearArchive_DINT : VOID    // FC 351
+    TITLE = 'Year Archive: Month/Day DINT'
+
+// ==============================================================================
+//   Year archive functions for REAL
+//   archives daily values [1..366], monthly values [1..12]
+//   and a YearValue.
+// ==============================================================================
+// 
+// cfgSUM : FALSE: the month[] values and the year value is the last token value
+//                 use this for daily total counter readings (like total kWh) 
+//
+//          TRUE : the month[] values and the year value is the actual sum
+//                 of all the daily values
+//                 use this for daily consumption reads (like kWh per day)
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    xVALID : BOOL;                     // If NOT VALID = FALSE THEN 0 is archived as day value with wrong parity 
+    dValue : DINT;                     // The value to archive
+    dDeviceID    : DINT;               // Device ID of the meter
+    SysClkEvents : BYTE ;              // System Clock Events
+    inPrevDateInfo : m7_udtDateInfo;   // Detailed DateInfo of previous day (Yesterday)
+    cfgSUM : BOOL;                     // configuration 1: month=SUM{days}; 0: month='last taken value'
+END_VAR
+
+// weil bei einem SystemClockEvent, bereits ein neuer Tag 00:00Uhr angebrochen ist,
+// wir aber die daten den letzten Tages ablesen/speichern müssen, benötigen wir
+// die Infos des gerade beendeten Tages
+
+VAR_IN_OUT
+    ioBuffer : m7_udtYearArchive_DINT;
+END_VAR
+
+VAR_OUTPUT
+
+END_VAR
+
+VAR_TEMP
+    wSysCLKevt : WORD;
+    SysCLK AT wSysCLKevt : STRUCT
+        hiByte  : BYTE;  
+        evtSEC  : BOOL ;    
+        evtMIN  : BOOL ;    
+        evtHOUR : BOOL ;    
+        evtDAY  : BOOL ;    
+        evtWEEK : BOOL ;    
+        evtMONTH: BOOL ;    
+        evtYEAR : BOOL ;    
+        evtReserve : BOOL ; 
+    END_STRUCT;
+   
+    tmpSUM : REAL;
+    
+    tmpDTx : m7_udtDateTimeEx;
+ 
+    BitCount : INT;
+    cmdSetStartTime : BOOL;
+    oddParityBit     : BOOL;
+END_VAR
+
+CONST
+    cst_Archive_Empty      := 0;  // Archive is empty, new archive
+    cst_Archive_InProgress := 1;  // Archive is in progress
+    cst_Archive_Ready      := 2;  // Archive is ready/full (Dec/31)
+END_CONST
+
+BEGIN
+
+    wSysCLKevt := BYTE_TO_WORD(SysClkEvents);
+
+    IF wSysCLKevt <> 0 THEN  // Anything to do? 0 means no acitve EVENT
+ 
+        cmdSetStartTime := FALSE;
+        IF ioBuffer.Status = cst_Archive_Empty THEN
+            ioBuffer.Status := cst_Archive_InProgress;  // Set archive status to 'in progress'
+            ioBuffer.Year := inPrevDateInfo.Year;       // Set year at archive start
+            ioBuffer.DeviceID := dDeviceID;             // Device ID of the meter
+            cmdSetStartTime := TRUE;                    // command for updating archive SartTime   
+        END_IF;
+ 
+        IF ioBuffer.Status = cst_Archive_InProgress THEN
+
+            oddParityBit := m7b_GetParity_DWORD( dwVAL := DINT_TO_DWORD(dValue) 
+                                         ,cfg_Even_Odd := TRUE  
+                                         ,iBitCount    := BitCount ) ; // OUT: iBitCount
+
+        // ----------------------------------------------------------------------
+        //  Every year : the event is triggered at midnight Dec.31=>Jan.01 
+        //  at this time inPrevDateInfo contains Dez.31 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtYEAR THEN 
+                // at end of the year, write the year of the buffer
+             //   ioBuffer.Year := inPrevDateInfo.Year;  // now at archive start!!!
+                ioBuffer.Status := cst_Archive_Ready;  // mark archive as ready/full
+                
+                IF NOT inPrevDateInfo.IsLeapYear THEN
+                    ioBuffer.day[366] :=0;  // clear the day[366] if it's a normal year  
+                END_IF;    
+     
+            END_IF;
+    
+        // ----------------------------------------------------------------------
+        //    Every month : the event is triggerd at midnight LastDayOfMonth
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtMONTH THEN 
+                ;  // at the moment nothing to do
+            END_IF;
+    
+        // ----------------------------------------------------------------------
+        //    Every day : the event is triggerd at midnight (12:00pm, 24:00) 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtDAY THEN 
+                ioBuffer.day[inPrevDateInfo.DayOfYear] := dValue;
+                ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := oddParityBit;
+                
+                IF xVALID THEN
+                    IF cfgSUM THEN   // configuration Month and Year values ar SUM{days} 
+        
+                        // if we take the SUM{}, we have to clear the Buffer value
+                        // for Month each 1. and the YearVal on Jan.01
+           
+                        IF inPrevDateInfo.Day = 1 THEN      // If 1. DayOfMonth => ClearBuffer
+                            ioBuffer.month[inPrevDateInfo.Month] := 0;  // clear the month value
+          
+                            IF inPrevDateInfo.Month = 1 THEN     // If 1.January
+                                // Clear buffer on Jan.1
+                                ioBuffer.ValYear := 0;
+                                ioBuffer.Year := inPrevDateInfo.Year;  
+                           END_IF;
+                        END_IF;
+                       
+                        // SUM{} in Buffer; (if it's a daily consumption)
+                        ioBuffer.month[inPrevDateInfo.Month]  := ioBuffer.month[inPrevDateInfo.Month] + dValue;
+                        ioBuffer.ValYear := ioBuffer.ValYear + dValue;
+                   
+                    ELSE  // Value for Month and Year is last taken value (if it's a total counter reading)
+                        ioBuffer.month[inPrevDateInfo.Month]  := dValue;
+                        ioBuffer.ValYear := dValue;
+                    END_IF;
+ 
+                ELSE
+                    ioBuffer.day[inPrevDateInfo.DayOfYear] := dValue;
+                    ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := FALSE;
+                END_IF;
+     
+                ioBuffer.LastDay := inPrevDateInfo.DayOfYear;  // save No of last archived DayOfYear
+                
+                // Write the TimeStamp as m7_udtDateTimeEx Structure, Maagic7.FC462
+                // a direct write to ioBuffer.TimeStamp is not possible, so we copy the DateTimeEx Structure
+                // first to a tmp VAR 
+                m7_SysCLK_to_DateTimeEx(out_udtDateTime := tmpDTx);
+                ioBuffer.TimeStampWrite := tmpDTx;
+    
+                IF cmdSetStartTime THEN
+                    ioBuffer.TimeStampStart := tmpDTx;
+                END_IF;
+           
+            END_IF;
+        END_IF;
+    END_IF;
+
+END_FUNCTION
+
+// ******************************************************************************
+
+FUNCTION m7_YearArchive_REAL : VOID   // FC 352
+    TITLE = 'Year Archive: Month/Day REAL'
+
+// ==============================================================================
+//   Year archive functions for REAL
+//   archives daily values [1..366], monthly values [1..12]
+//   and a YearValue.
+// ==============================================================================
+// 
+// cfgSUM : FALSE: the month[] values and the year value is the last token value
+//                 use this for daily total counter readings (like total kWh) 
+//
+//          TRUE : the month[] values and the year value is the actual sum
+//                 of all the daily values
+//                 use this for daily consumption reads (like kWh per day)
+//
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 3/2020
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//   
+// ------------------------------------------------------------------------------
+
+    VERSION : '1.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    xVALID : BOOL;                     // If NOT VALID = FALSE THEN 0 is archived as day value with wrong parity 
+    rValue : REAL;                     // The value to archive
+    dDeviceID    : DINT;               // Device ID of the meter
+    SysClkEvents : BYTE ;              // System Clock Events
+    inPrevDateInfo : m7_udtDateInfo;   // Detailed DateInfo of previous day (Yesterday)
+    cfgSUM : BOOL;                     // configuration 1: month=SUM{days}; 0: month='last taken value'
+END_VAR
+
+// weil bei einem SystemClockEvent, bereits ein neuer Tag 00:00Uhr angebrochen ist,
+// wir aber die daten den letzten Tages ablesen/speichern müssen, benötigen wir
+// die Infos des gerade beendeten Tages
+
+VAR_IN_OUT
+    ioBuffer : m7_udtYearArchive_REAL;
+END_VAR
+
+VAR_OUTPUT
+
+END_VAR
+
+VAR_TEMP
+    wSysCLKevt : WORD;
+    SysCLK AT wSysCLKevt : STRUCT
+        hiByte  : BYTE;  
+        evtSEC  : BOOL ;    
+        evtMIN  : BOOL ;    
+        evtHOUR : BOOL ;    
+        evtDAY  : BOOL ;    
+        evtWEEK : BOOL ;    
+        evtMONTH: BOOL ;    
+        evtYEAR : BOOL ;    
+        evtReserve : BOOL ; 
+    END_STRUCT;
+   
+    tmpSUM : REAL;
+    
+    tmpDTx : m7_udtDateTimeEx;
+ 
+    BitCount : INT;
+    cmdSetStartTime : BOOL;
+    oddParityBit     : BOOL;
+END_VAR
+
+CONST
+    cst_Archive_Empty      := 0;  // Archive is empty, new archive
+    cst_Archive_InProgress := 1;  // Archive is in progress
+    cst_Archive_Ready      := 2;  // Archive is ready/full (Dec/31)
+END_CONST
+
+BEGIN
+
+    wSysCLKevt := BYTE_TO_WORD(SysClkEvents);
+
+    IF wSysCLKevt <> 0 THEN  // Anything to do? 0 means no acitve EVENT
+
+        cmdSetStartTime := FALSE;
+        IF ioBuffer.Status = cst_Archive_Empty THEN
+            ioBuffer.Status := cst_Archive_InProgress;  // Set archive status to 'in progress'
+            ioBuffer.Year := inPrevDateInfo.Year;       // Set year at archive start
+            ioBuffer.DeviceID := dDeviceID;             // Device ID of the meter
+            cmdSetStartTime := TRUE;                    // command for updating archive SartTime   
+        END_IF;
+
+        IF ioBuffer.Status = cst_Archive_InProgress THEN
+
+            oddParityBit := m7b_GetParity_DWORD( dwVAL := REAL_TO_DWORD(rValue) 
+                                         ,cfg_Even_Odd := TRUE  
+                                         ,iBitCount    := BitCount ) ; // OUT: iBitCount
+
+        // ----------------------------------------------------------------------
+        //  Every year : the event is triggered at midnight Dec.31=>Jan.01 
+        //  at this time inPrevDateInfo contains Dez.31 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtYEAR THEN 
+                // at end of the year, write the year of the buffer
+            //    ioBuffer.Year := inPrevDateInfo.Year;   // now at archive start!!!
+                ioBuffer.Status := cst_Archive_Ready;  // mark archive as ready/full
+               
+                IF NOT inPrevDateInfo.IsLeapYear THEN
+                    ioBuffer.day[366] :=0;  // clear the day[366] if it's a normal year  
+                END_IF;    
+      
+            END_IF;
+        
+    
+        // ----------------------------------------------------------------------
+        //    Every month : the event is triggerd at midnight LastDayOfMonth
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtMONTH THEN 
+                ;  // at the moment nothing to do
+            END_IF;
+    
+        // ----------------------------------------------------------------------
+        //    Every day : the event is triggerd at midnight (12:00pm, 24:00) 
+        // ----------------------------------------------------------------------
+    
+            IF SysClk.evtDAY THEN 
+                ioBuffer.day[inPrevDateInfo.DayOfYear] := rValue;
+                ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := oddParityBit;
+                
+                IF xVALID THEN
+                    IF cfgSUM THEN   // configuration Month and Year values ar SUM{days} 
+        
+                        // if we take the SUM{}, we have to clear the Buffer value
+                        // for Month each 1. and the YearVal on Jan.01
+           
+                        IF inPrevDateInfo.Day = 1 THEN      // If 1. DayOfMonth => ClearBuffer
+                            ioBuffer.month[inPrevDateInfo.Month] := 0;  // clear the month value
+          
+                            IF inPrevDateInfo.Month = 1 THEN     // If 1.January
+                                // Clear buffer on Jan.1
+                                ioBuffer.ValYear := 0;
+                                ioBuffer.Year := inPrevDateInfo.Year;  
+                           END_IF;
+                        END_IF;
+                       
+                        // SUM{} in Buffer; (if it's a daily consumption)
+                        ioBuffer.month[inPrevDateInfo.Month]  := ioBuffer.month[inPrevDateInfo.Month] + rValue;
+                        ioBuffer.ValYear := ioBuffer.ValYear + rValue;
+                   
+                    ELSE  // Value for Month and Year is last taken value (if it's a total counter reading)
+                        ioBuffer.month[inPrevDateInfo.Month]  := rValue;
+                        ioBuffer.ValYear := rValue;
+                    END_IF;
+                ELSE
+                    ioBuffer.day[inPrevDateInfo.DayOfYear] := rValue;
+                    ioBuffer.oddParity[inPrevDateInfo.DayOfYear] := FALSE;
+                END_IF;
+     
+                ioBuffer.LastDay := inPrevDateInfo.DayOfYear;  // save No of last archived DayOfYear
+                
+                // Write the TimeStamp as m7_udtDateTimeEx Structure, Maagic7.FC462
+                // a direct write to ioBuffer.TimeStamp is not possible, so we copy the DateTimeEx Structure
+                // first to a tmp VAR 
+                m7_SysCLK_to_DateTimeEx(out_udtDateTime := tmpDTx);
+                ioBuffer.TimeStampWrite := tmpDTx;
+    
+                IF cmdSetStartTime THEN
+                    ioBuffer.TimeStampStart := tmpDTx;
+                END_IF;
+
+            END_IF;
+        END_IF;
+    END_IF;
+
+END_FUNCTION
+
+

@@ -1,0 +1,103 @@
+FUNCTION_BLOCK  m7_ErrorAutoReset
+    TITLE = 'handels the max. allowed number of erros per time period'
+
+// ACHTUNG: in der Entwicklung! Nicht funktionsfähig
+
+// ==============================================================================
+// Handels the MAX allowed number OF erros per TIME period 
+// ==============================================================================
+//    
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 31.05.2019
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//  
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+  Err : BOOL ;  
+  RESET: BOOL;  
+  NoOfAutoResets : INT; // 0..6   
+  timPeriod : TIME ;  
+  tim_ResetImpuls: TIME;  
+END_VAR
+
+VAR_OUTPUT
+    ERR_AUTO_RESET : BOOL ;   
+    DSP_NoOfErros : INT ;
+END_VAR
+
+VAR
+  memErrTime : ARRAY  [1 .. 7 ] OF TIME ;
+  HM_FP_ERR : BOOL ; 
+  memErr: BOOL;  
+  memNewErr: BOOL;
+  TP_Err_RESET : TP; 
+END_VAR
+
+VAR_TEMP
+  dTimeDiff : DINT;  
+  timSysTime: TIME;
+  tmpNoOfErrors: INT; // LIMIT
+END_VAR
+
+
+BEGIN
+    tmpNoOfResets := NoOfAutoResets;
+
+    IF tmpNoOfResets >6 THEN
+        tmpNoOfResets := 6;
+    END_IF;
+          
+    IF DSP_NoOfResets > 0 THEN
+        timSysTime := TIME_TCK();  // SFC64 TTIME_TCK
+        
+        // TimeDifference of actual SystTime and TimeOfError1
+        dTimeDiff := ABS( TIME_TO_DINT(timSysTime) - TIME_TO_DINT(memErrTime[1]) );
+ 
+        IF dTimeDiff >= TIME_TO_DINT(timPeriod) THEN
+            // remove ERROR_1 from the List, because it is older than TimePeriod
+            memErrTime[1]:=memErrTime[2];
+            memErrTime[2]:=memErrTime[3];
+            memErrTime[3]:=memErrTime[4];
+            memErrTime[4]:=memErrTime[5];
+            memErrTime[5]:=memErrTime[6];
+            memErrTime[6]:=memErrTime[7];
+            DSP_NoOfResets := DSP_NoOfResets -1;
+        END_IF;
+    END_IF;
+
+    IF Err AND NOT memErr THEN // RTrig(Err)
+        memNewErr:=TRUE;
+        DSP_NoOfResets := DSP_NoOfResets + 1;
+        IF DSP_NoOfResets >7 THEN          // Limit NoOfErros to 7
+            DSP_NoOfResets := 7;
+        END_IF;
+        memErrTime[DSP_NoOfResets]:= TIME_TCK(); // SFC64 TTIME_TCK
+    END_IF;
+    
+    memErr:=Err; // RTrig(Err)
+    
+    IF RESET THEN
+        DSP_NoOfResets:=0;
+    END_IF;
+
+    Err := (NoOfAutoResets >= DSP_NoOfResets);
+    
+    // AutoReset first Errors
+ 
+    TP_Err_RESET(IN := (memNewErr AND NOT ERR)  // IN: BOOL
+                ,PT := tim_ResetImpuls          // IN: TIME
+                    ); 
+ 
+    ERR_AUTO_RESET := TP_Err_RESET.Q; // OUT: BOOL
+           
+    OK:=TRUE;
+END_FUNCTION_BLOCK

@@ -1,0 +1,66 @@
+
+FUNCTION m7_DT_DATE : DATE
+    TITLE = 'Date_And_Time to DATE'
+
+// ==============================================================================
+// Extract the DATE from the S7_Date_And_Time Format
+// m7_DT_DATE can be used instead OF Siemens IEC Library FC6 : DT_DATE
+// ==============================================================================
+// 
+// AUTHOR: Stefan Maag, Dipl.-Ing. (FH) Elektrotechnik 
+// DATE: 7/2017
+//
+// CHANGELOG:
+// ------------------------------------------------------------------------------
+// DATE         NAME        DESCRIPTION
+// ------------------------------------------------------------------------------
+//  
+// ------------------------------------------------------------------------------
+
+    VERSION : '3.0'
+    AUTHOR  : 'S.Maag'
+    FAMILY  : 'Maagic7'
+
+VAR_INPUT
+    IN : DATE_AND_TIME; //  DT#yy-mm-dd-hh:mm:ss.sss
+END_VAR
+
+VAR_TEMP
+    // temporäre Variablen
+    
+    tmpDT : DATE_AND_TIME;    
+    ptrDT AT tmpDT : STRUCT   // Pointer to tmpDT AS STRUCT (like a C++ UNION)
+        Year: BYTE;
+        Month: BYTE;
+        Day: BYTE;
+        Hour: BYTE;
+        Minute : BYTE;
+        Second : BYTE;
+        ms : BYTE;
+        ms_WeedDay : BYTE;
+    END_STRUCT;
+    
+    yy : INT;
+    mm : INT;
+    dd : INT;
+    MyOK : BOOL;
+END_VAR
+
+BEGIN
+    tmpDT := IN;
+    
+    // converts the BCD-Values to INT; automatically check for valid BCD values and limit each digit to max 9
+    yy :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Year);  // IN: BYTE
+    MyOK := OK;
+    mm :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Month);  // IN: BYTE
+    MyOK := OK AND MyOK;
+    dd :=  m7_BCD_BYTE_TO_INT(bytBCD := ptrDT.Day);  // IN: BYTE
+    MyOK := OK AND MyOK;             
+    
+    // Create the DATE-Format
+    m7_DT_DATE := m7_CreateDate(Year    := yy  // IN: INT
+                                ,Month  := mm // IN: INT
+                                ,Day    := dd); // IN: INT
+    OK:= MyOK;                           
+                              
+END_FUNCTION
