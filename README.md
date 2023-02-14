@@ -32,4 +32,5 @@ Mapping Table functions to create "criss-cross-switches" "Kreuz- und Querschalte
 This can be used for optimizing Multi-Pump-Controls or Heater-Controls
 
 m7_Mapping_4x.SCL: Mapping functions with 4 I/O
-m7_Mapping_4x.SCL: Mapping functions with 8 I/O
+
+m7_Mapping_8x.SCL: Mapping functions with 8 I/O
